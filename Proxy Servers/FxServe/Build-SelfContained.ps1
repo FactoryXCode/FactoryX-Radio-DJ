@@ -35,7 +35,6 @@ $webSource = Join-Path $projectRoot 'www'
 $webFiles = Get-ChildItem -LiteralPath $webSource -Recurse -File | Where-Object {
     $_.Name -notlike '*.m4s' -and
     $_.Name -notin @('live.json', 'init.mp4', 'cast-access.log') -and
-    -not ($_.Directory.Name -eq 'FxAlert' -and $_.Name -like 'status.json*') -and
     $_.Extension -ne '.log' -and
     $_.Name -notlike '*.before-*' -and
     $_.Name -notlike '*.viewer-update.*'
