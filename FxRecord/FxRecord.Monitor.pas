@@ -39,12 +39,19 @@ type
     FLastPublishSeq: Int64;
     FManifestFailureTick: UInt64;
     FLastStatusWriteTick: UInt64;
+    FStatusPublishFailed: Boolean;
     FLastAlertId: string;
     FLastAlertKey: string;
     FLastAlertSeverity: string;
     FLastAlertSubject: string;
     FLastAlertText: string;
     FLastAlertUtc: string;
+    FLogFileName: string;
+    FLastSystemCheckTick: UInt64;
+    FRestartPending: Boolean;
+    FUpdateCheckProcess: THandle;
+    FLastUpdateCheckTick: UInt64;
+    FUpdatesWaiting: Boolean;
     procedure Notice(const ALevel: TFxRecordNoticeLevel;
                      const AText: string);
     procedure Alert(const AKey,
@@ -53,6 +60,8 @@ type
                     const ALevel: TFxRecordNoticeLevel);
     procedure CheckDisk();
     procedure CheckLiveManifest();
+    procedure CheckWindowsRestart();
+    procedure CheckWindowsUpdates();
     procedure RecorderEvent(const ALevel: TFxRecorderEventLevel;
                             const AText: string);
     function StatusFileName(): string;
@@ -62,7 +71,8 @@ type
     procedure Execute(); override;
   public
     constructor Create(const AWindowHandle: HWND;
-                       const ASettings: TFxRecordSettings);
+                       const ASettings: TFxRecordSettings;
+                       const ALogFileName: string = '');
     destructor Destroy(); override;
     procedure Stop();
   end;
@@ -72,7 +82,8 @@ implementation
 uses
   System.DateUtils,
   System.IOUtils,
-  System.JSON;
+  System.JSON,
+  System.Win.Registry;
 
 function JsonText(const AObject: TJSONObject;
                   const AName: string): string;
@@ -162,12 +173,14 @@ begin
 end;
 
 constructor TFxRecordMonitor.Create(const AWindowHandle: HWND;
-                                    const ASettings: TFxRecordSettings);
+                                    const ASettings: TFxRecordSettings;
+                                    const ALogFileName: string);
 begin
   inherited Create(True);
   FreeOnTerminate := False;
   FWindowHandle := AWindowHandle;
   FSettings := ASettings;
+  FLogFileName := ALogFileName;
   FStopEvent := TEvent.Create(nil, True, False, '');
   FAlertTicks := TDictionary<string, UInt64>.Create();
   FRecorder := TFxSourceRecorder.Create(FSettings, RecorderEvent);
@@ -178,10 +191,18 @@ begin
   FLastPublishSeq := -1;
   FManifestFailureTick := 0;
   FLastStatusWriteTick := 0;
+  FStatusPublishFailed := False;
+  FLastSystemCheckTick := 0;
+  FRestartPending := False;
+  FUpdateCheckProcess := 0;
+  FLastUpdateCheckTick := 0;
+  FUpdatesWaiting := False;
 end;
 
 destructor TFxRecordMonitor.Destroy();
 begin
+  if FUpdateCheckProcess <> 0 then
+    CloseHandle(FUpdateCheckProcess);
   FRecorder.Free();
   FAlertTicks.Free();
   FStopEvent.Free();
@@ -198,7 +219,20 @@ procedure TFxRecordMonitor.Notice(const ALevel: TFxRecordNoticeLevel;
                                   const AText: string);
 var
   Item: PFxRecordNotice;
+  Line: string;
 begin
+  if FLogFileName <> '' then
+    begin
+      try
+        Line := FormatDateTime('yyyy-mm-dd hh:nn:ss', Now) + ' [' +
+                UpperCase(NoticeLevelText(ALevel)) + '] ' + AText + sLineBreak;
+        TFile.AppendAllText(FLogFileName, Line, TEncoding.UTF8);
+      except
+        { Logging must never stop compliance recording. }
+      end;
+    end;
+  if FWindowHandle = 0 then
+    Exit;
   New(Item);
   Item^.Level := ALevel;
   Item^.Text := AText;
@@ -227,6 +261,115 @@ begin
   FLastAlertText := AText;
   FLastAlertUtc := UtcText();
   Notice(ALevel, AText);
+end;
+
+procedure TFxRecordMonitor.CheckWindowsUpdates();
+const
+  CHECK_INTERVAL_MS: UInt64 = 6 * 60 * 60 * 1000;
+  UPDATE_WAITING_EXIT_CODE = 10;
+var
+  ProcessInfo: TProcessInformation;
+  StartupInfo: TStartupInfo;
+  CommandLine: string;
+  ExitCode: DWORD;
+  NowTick: UInt64;
+begin
+  NowTick := GetTickCount();
+  if FUpdateCheckProcess <> 0 then
+    begin
+      if WaitForSingleObject(FUpdateCheckProcess, 0) <> WAIT_OBJECT_0 then
+        Exit;
+      ExitCode := DWORD(-1);
+      GetExitCodeProcess(FUpdateCheckProcess, ExitCode);
+      CloseHandle(FUpdateCheckProcess);
+      FUpdateCheckProcess := 0;
+      if ExitCode = UPDATE_WAITING_EXIT_CODE then
+        begin
+          if not FUpdatesWaiting then
+            Alert('windows-updates-waiting',
+              'WARNING: Windows updates are waiting',
+              'Windows updates are available. Install them during a planned maintenance window.',
+              fnWarning);
+          FUpdatesWaiting := True;
+        end
+      else if ExitCode = 0 then
+        begin
+          if FUpdatesWaiting then
+            begin
+              Notice(fnRecovery, 'No Windows updates are waiting for installation.');
+              FAlertTicks.Remove('windows-updates-waiting');
+            end;
+          FUpdatesWaiting := False;
+        end
+      else
+        Notice(fnWarning, Format(
+          'The Windows Update availability check failed (exit code %d).',
+          [ExitCode]));
+      Exit;
+    end;
+
+  if (FLastUpdateCheckTick <> 0) and
+     ((NowTick - FLastUpdateCheckTick) < CHECK_INTERVAL_MS) then
+    Exit;
+  FLastUpdateCheckTick := NowTick;
+  ZeroMemory(@StartupInfo, SizeOf(StartupInfo));
+  StartupInfo.cb := SizeOf(StartupInfo);
+  StartupInfo.dwFlags := STARTF_USESHOWWINDOW;
+  StartupInfo.wShowWindow := SW_HIDE;
+  ZeroMemory(@ProcessInfo, SizeOf(ProcessInfo));
+  CommandLine := '"' + ParamStr(0) + '" --update-check';
+  UniqueString(CommandLine);
+  if not CreateProcess(nil, PChar(CommandLine), nil, nil, False,
+                       CREATE_NO_WINDOW, nil, nil, StartupInfo,
+                       ProcessInfo) then
+    begin
+      Notice(fnWarning, 'Could not start the Windows Update check: ' +
+                        SysErrorMessage(GetLastError()));
+      Exit;
+    end;
+  CloseHandle(ProcessInfo.hThread);
+  FUpdateCheckProcess := ProcessInfo.hProcess;
+end;
+
+function RegistryKeyExists64(const AKey: string): Boolean;
+var
+  Registry: TRegistry;
+begin
+  Registry := TRegistry.Create(KEY_READ or KEY_WOW64_64KEY);
+  try
+    Registry.RootKey := HKEY_LOCAL_MACHINE;
+    Result := Registry.KeyExists(AKey);
+  finally
+    Registry.Free();
+  end;
+end;
+
+procedure TFxRecordMonitor.CheckWindowsRestart();
+const
+  CHECK_INTERVAL_MS = 5 * 60 * 1000;
+var
+  NowTick: UInt64;
+  Pending: Boolean;
+begin
+  NowTick := GetTickCount();
+  if (FLastSystemCheckTick <> 0) and
+     ((NowTick - FLastSystemCheckTick) < CHECK_INTERVAL_MS) then
+    Exit;
+  FLastSystemCheckTick := NowTick;
+  Pending := RegistryKeyExists64(
+    '\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending') or
+    RegistryKeyExists64(
+    '\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired');
+  if Pending and not FRestartPending then
+    Alert('windows-restart-pending', 'WARNING: Windows restart required',
+      'Windows has installed an update that requires a restart. Plan a maintenance window; do not restart during a live broadcast.',
+      fnWarning)
+  else if not Pending and FRestartPending then
+    begin
+      Notice(fnRecovery, 'Windows no longer reports a pending restart.');
+      FAlertTicks.Remove('windows-restart-pending');
+    end;
+  FRestartPending := Pending;
 end;
 
 procedure TFxRecordMonitor.RecorderEvent(const ALevel: TFxRecorderEventLevel;
@@ -482,6 +625,8 @@ var
   DiskText: string;
   Json: TJSONObject;
   AlertJson: TJSONObject;
+  MoveAttempt: Integer;
+  MoveError: DWORD;
 begin
   NowTick := GetTickCount();
   if not AForce and (FLastStatusWriteTick <> 0) and
@@ -492,7 +637,8 @@ begin
     StateText := 'stopped'
   else if (FDiskState >= 2) then
     StateText := 'critical'
-  else if (FDiskState = 1) or (FLiveState = 2) then
+  else if (FDiskState = 1) or (FLiveState = 2) or FRestartPending or
+          FUpdatesWaiting then
     StateText := 'warning'
   else if (FDiskState < 0) or (FLiveState < 0) then
     StateText := 'starting'
@@ -522,6 +668,14 @@ begin
     Json.AddPair('diskState', DiskText);
     Json.AddPair('diskFreeGB', TJSONNumber.Create(FDiskFreeGB));
     Json.AddPair('streamState', FLiveDetail);
+    if FRestartPending then
+      Json.AddPair('restartPending', TJSONTrue.Create())
+    else
+      Json.AddPair('restartPending', TJSONFalse.Create());
+    if FUpdatesWaiting then
+      Json.AddPair('updatesWaiting', TJSONTrue.Create())
+    else
+      Json.AddPair('updatesWaiting', TJSONFalse.Create());
     Json.AddPair('sessionId', FLastSessionId);
     Json.AddPair('publishSeq', TJSONNumber.Create(FLastPublishSeq));
     if FRecorder.IsRecording() then
@@ -542,9 +696,36 @@ begin
     Json.AddPair('alert', AlertJson);
 
     TFile.WriteAllText(TempName, Json.ToJSON(), TEncoding.UTF8);
-    if not MoveFileEx(PChar(TempName), PChar(TargetName),
+    MoveError := ERROR_SUCCESS;
+    for MoveAttempt := 1 to 20 do
+      begin
+        if MoveFileEx(PChar(TempName), PChar(TargetName),
                       MOVEFILE_REPLACE_EXISTING or MOVEFILE_WRITE_THROUGH) then
-      RaiseLastOSError();
+          begin
+            MoveError := ERROR_SUCCESS;
+            Break;
+          end;
+
+        MoveError := GetLastError();
+        if (MoveError <> ERROR_ACCESS_DENIED) and
+           (MoveError <> ERROR_SHARING_VIOLATION) and
+           (MoveError <> ERROR_LOCK_VIOLATION) then
+          Break;
+        Sleep(25);
+      end;
+
+    if MoveError <> ERROR_SUCCESS then
+      begin
+        if not FStatusPublishFailed then
+          Notice(fnWarning, 'FxAlert status publication is temporarily blocked: ' +
+                 SysErrorMessage(MoveError));
+        FStatusPublishFailed := True;
+        Exit;
+      end;
+
+    if FStatusPublishFailed then
+      Notice(fnRecovery, 'FxAlert status publication resumed.');
+    FStatusPublishFailed := False;
     FLastStatusWriteTick := NowTick;
   finally
     Json.Free();
@@ -561,6 +742,8 @@ begin
     begin
       try
         CheckDisk();
+        CheckWindowsRestart();
+        CheckWindowsUpdates();
         CheckLiveManifest();
         PublishStatus(False, False);
       except

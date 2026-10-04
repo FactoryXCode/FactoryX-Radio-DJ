@@ -18,15 +18,60 @@ The initial VCL application provides:
 - active filename and recording progress in the application log;
 - an editable Delphi VCL form.
 
-The first recording engine supports `SourceCopy` and `MP4-H264-AAC`. RDJ Pro's
-published stream already contains H.264 video and AAC audio, so FxRecord keeps
-the original encoded media without reducing its quality. Active recordings use
-the `.mp4.partial` suffix. FxRecord renames them to `.mp4` after rotation or a
-normal stop. If FxRecord finds an unfinished file after a crash, it preserves
-and reports that file instead of overwriting it.
+The recording engine supports these output profiles:
 
-The remaining output profiles need the conversion engine. Conversion will run
-only after the source recording has been safely closed.
+- `SourceCopy` and `MP4-H264-AAC` keep RDJ Pro's H.264 video and AAC audio
+  without reducing their quality.
+- `AVI-H264-MP3` creates a real AVI file with H.264 video at 25 fps and MP3
+  stereo audio at 44.1 kHz and 192 kbps. Video is converted to meet the
+  compliance frame-rate minimum.
+
+Active MP4 recordings use the `.mp4.partial` suffix. AVI recording first uses
+a safe `.avi.source.mp4.partial` file. When the source segment closes, FxRecord
+converts it in the background and publishes the result as `.avi`. If conversion
+fails, the source MP4 is kept and the administrator receives an FxAlert warning.
+If FxRecord finds an unfinished file after a crash, it preserves and reports
+that file instead of overwriting it.
+
+FxRecord rebases the video and audio decode timelines separately at the start
+of every archive file. Each completed MP4 therefore starts at time zero even
+when the RDJ Pro broadcast session has already been running for hours. This
+keeps the elapsed time and seek position correct in players such as VLC.
+
+`AVI-H264-MP3` uses FFmpeg. Place `ffmpeg.exe` beside `FxRecord.exe` on the
+server. The MfPack development tree also finds the copy used by the
+`MfCastPlayer II` sample. Check the FFmpeg build's licence before distributing
+it with a product.
+
+## Windows service
+
+Copy `FxRecord.exe`, `FxRecord.ini`, and—when AVI output is used—`ffmpeg.exe`
+to a local folder on the broadcast server, for example `C:\FxRecord`. Use
+server-local paths in `FxRecord.ini`; a service running as LocalSystem should
+not depend on a network share that points back to the same computer.
+
+Open Command Prompt as administrator and run:
+
+```bat
+C:\FxRecord\Install-FxRecord.cmd
+```
+
+The installer registers `FactoryX FxRecord` as a delayed automatic Windows
+service and configures three restart attempts with a 60-second delay. The
+service starts without a signed-in user and writes `FxRecord.log` beside its
+INI file.
+
+To remove only the service registration:
+
+```bat
+C:\FxRecord\Uninstall-FxRecord.cmd
+```
+
+FxRecord checks Windows every five minutes for an installed update that needs
+a restart. It also asks the Windows Update Agent every six hours whether
+updates are waiting for installation. Both conditions are published through
+FxAlert so the administrator can choose a safe maintenance window. The update
+scan runs in a separate helper process and cannot pause stream recording.
 
 ## FxAlert phone and desktop app
 

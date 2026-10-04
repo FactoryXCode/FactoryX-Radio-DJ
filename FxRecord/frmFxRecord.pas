@@ -32,6 +32,7 @@ type
     btnStart: TButton;
     btnStop: TButton;
     btnClearLog: TButton;
+    btnOpenArchive: TButton;
     pnlBottom: TPanel;
     btnSave: TButton;
     btnClose: TButton;
@@ -58,6 +59,7 @@ type
     procedure btnStartClick(Sender: TObject);
     procedure btnStopClick(Sender: TObject);
     procedure btnClearLogClick(Sender: TObject);
+    procedure btnOpenArchiveClick(Sender: TObject);
     procedure btnSaveClick(Sender: TObject);
     procedure btnCloseClick(Sender: TObject);
     procedure btnBrowseStreamClick(Sender: TObject);
@@ -86,6 +88,8 @@ implementation
 {$R *.dfm}
 
 uses
+  Winapi.ShellAPI,
+  FxRecord.Converter,
   LWFileBrowserExDlg;
 
 procedure TfrmFxRecord.BrowseForFolder(AEdit: TEdit; const ACaption: string);
@@ -176,7 +180,14 @@ begin
     AError := 'Retention days must be greater than zero.'
   else if (FSettings.CriticalFreeGB <= 0) or
           (FSettings.WarningFreeGB < FSettings.CriticalFreeGB) then
-    AError := 'Disk warning must be greater than or equal to the critical value.';
+    AError := 'Disk warning must be greater than or equal to the critical value.'
+  else if not SameText(FSettings.OutputProfile, 'SourceCopy') and
+          not SameText(FSettings.OutputProfile, 'MP4-H264-AAC') and
+          not SameText(FSettings.OutputProfile, 'AVI-H264-MP3') then
+    AError := 'This output profile is not implemented yet.'
+  else if SameText(FSettings.OutputProfile, 'AVI-H264-MP3') and
+          (FindFxRecordFFmpeg() = '') then
+    AError := 'AVI-H264-MP3 requires ffmpeg.exe beside FxRecord.exe.';
 
   if AError <> '' then
     Exit;
@@ -267,6 +278,21 @@ end;
 procedure TfrmFxRecord.btnClearLogClick(Sender: TObject);
 begin
   memLog.Clear();
+end;
+
+procedure TfrmFxRecord.btnOpenArchiveClick(Sender: TObject);
+begin
+  if not DirectoryExists(FSettings.ArchivePath) and
+     not ForceDirectories(FSettings.ArchivePath) then
+    begin
+      ShowMessage('The archive folder cannot be created:' + sLineBreak +
+                  FSettings.ArchivePath);
+      Exit;
+    end;
+  if ShellExecute(Handle, 'open', PChar(FSettings.ArchivePath), nil, nil,
+                  SW_SHOWNORMAL) <= 32 then
+    ShowMessage('Windows Explorer could not open:' + sLineBreak +
+                FSettings.ArchivePath);
 end;
 
 procedure TfrmFxRecord.btnSaveClick(Sender: TObject);

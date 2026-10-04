@@ -68,7 +68,7 @@ object frmFxRecord: TfrmFxRecord
           ParentFont = False
         end
         object btnStart: TButton
-          Left = 430
+          Left = 420
           Top = 12
           Width = 90
           Height = 31
@@ -77,7 +77,7 @@ object frmFxRecord: TfrmFxRecord
           OnClick = btnStartClick
         end
         object btnStop: TButton
-          Left = 528
+          Left = 518
           Top = 12
           Width = 90
           Height = 31
@@ -86,13 +86,22 @@ object frmFxRecord: TfrmFxRecord
           OnClick = btnStopClick
         end
         object btnClearLog: TButton
-          Left = 624
+          Left = 614
           Top = 12
           Width = 90
           Height = 31
           Caption = 'Clear Log'
           TabOrder = 2
           OnClick = btnClearLogClick
+        end
+        object btnOpenArchive: TButton
+          Left = 274
+          Top = 12
+          Width = 138
+          Height = 31
+          Caption = 'Open Archive Folder'
+          TabOrder = 3
+          OnClick = btnOpenArchiveClick
         end
       end
     end
@@ -259,11 +268,7 @@ object frmFxRecord: TfrmFxRecord
           Items.Strings = (
             'SourceCopy'
             'MP4-H264-AAC'
-            'WMV-WMA'
-            'AVI-H264-MP3'
-            'MOV-H264-AAC'
-            'Audio-MP3'
-            'Audio-WMA')
+            'AVI-H264-MP3')
         end
         object edSplitMinutes: TEdit
           Left = 138

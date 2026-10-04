@@ -7,7 +7,10 @@ uses
   System.SysUtils,
   System.Classes,
   System.JSON,
-  FxRecord.Config;
+  System.Generics.Collections,
+  FxRecord.Config,
+  FxRecord.Converter,
+  RDJ.RdjPro.CastFmp4Rebaser;
 
 type
   TFxRecorderEventLevel = (relInfo, relWarning, relCritical, relRecovery);
@@ -19,6 +22,7 @@ type
     FSettings: TFxRecordSettings;
     FOnEvent: TFxRecorderEvent;
     FFileHandle: THandle;
+    FRebaser: TRdjProCastFmp4Rebaser;
     FActivePartialName: string;
     FActiveFinalName: string;
     FActiveStarted: TDateTime;
@@ -30,6 +34,7 @@ type
     FLastSequence: Int64;
     FLastProgressTick: UInt64;
     FHadWriteError: Boolean;
+    FConversions: TObjectList<TFxConversionThread>;
     procedure Event(const ALevel: TFxRecorderEventLevel;
                     const AText: string);
     function StartSegment(const AInitFile: string): Boolean;
@@ -44,13 +49,17 @@ type
     procedure RecoverPartialFiles();
     procedure CleanupExpiredFiles();
     procedure ReportProgress();
+    function IsAviProfile(): Boolean;
+    procedure ReapConversions(const AWaitForAll: Boolean);
+    procedure QueueAviConversion(const ASourceFile,
+                                       AFinalFile: string);
   public
     constructor Create(const ASettings: TFxRecordSettings;
                        const AOnEvent: TFxRecorderEvent);
     destructor Destroy(); override;
     procedure ProcessManifest(const AManifest: TJSONObject);
     procedure Stop();
-    property ActiveFileName: string read FActiveFinalName;
+    property ActiveFileName: string read FActivePartialName;
     property BytesWritten: Int64 read FBytesWritten;
     property LastSequence: Int64 read FLastSequence;
     function IsRecording(): Boolean;
@@ -198,6 +207,8 @@ begin
   inherited Create();
   FSettings := ASettings;
   FOnEvent := AOnEvent;
+  FRebaser := TRdjProCastFmp4Rebaser.Create();
+  FConversions := TObjectList<TFxConversionThread>.Create(True);
   FFileHandle := INVALID_HANDLE_VALUE;
   FNextSequence := -1;
   FLastSequence := -1;
@@ -209,7 +220,14 @@ end;
 destructor TFxSourceRecorder.Destroy();
 begin
   Stop();
+  FConversions.Free();
+  FRebaser.Free();
   inherited Destroy();
+end;
+
+function TFxSourceRecorder.IsAviProfile(): Boolean;
+begin
+  Result := SameText(FSettings.OutputProfile, 'AVI-H264-MP3');
 end;
 
 procedure TFxSourceRecorder.Event(const ALevel: TFxRecorderEventLevel;
@@ -246,12 +264,21 @@ var
   Index: Integer;
 begin
   BaseName := FormatDateTime('yyyy-mm-dd-hhnnss', AStarted);
-  Candidate := TPath.Combine(FSettings.ArchivePath, BaseName + '.mp4');
+  if IsAviProfile() then
+    Candidate := TPath.Combine(FSettings.ArchivePath, BaseName + '.avi')
+  else
+    Candidate := TPath.Combine(FSettings.ArchivePath, BaseName + '.mp4');
   Index := 1;
-  while FileExists(Candidate) or FileExists(Candidate + '.partial') do
+  while FileExists(Candidate) or FileExists(Candidate + '.partial') or
+        FileExists(Candidate + '.source.mp4') or
+        FileExists(Candidate + '.source.mp4.partial') do
     begin
-      Candidate := TPath.Combine(FSettings.ArchivePath,
-        Format('%s-%2.2d.mp4', [BaseName, Index]));
+      if IsAviProfile() then
+        Candidate := TPath.Combine(FSettings.ArchivePath,
+          Format('%s-%2.2d.avi', [BaseName, Index]))
+      else
+        Candidate := TPath.Combine(FSettings.ArchivePath,
+          Format('%s-%2.2d.mp4', [BaseName, Index]));
       Inc(Index);
     end;
   Result := Candidate;
@@ -284,6 +311,23 @@ begin
   finally
     FindClose(Search);
   end;
+
+  { A source file is kept until its AVI conversion has completed. Resume any
+    conversion that was interrupted by an application or computer restart. }
+  if FindFirst(TPath.Combine(FSettings.ArchivePath, '*.avi.source.mp4'),
+               faAnyFile, Search) <> 0 then
+    Exit;
+  try
+    repeat
+      SourceName := TPath.Combine(FSettings.ArchivePath, Search.Name);
+      TargetName := Copy(SourceName, 1,
+        Length(SourceName) - Length('.source.mp4'));
+      if not FileExists(TargetName) then
+        QueueAviConversion(SourceName, TargetName);
+    until FindNext(Search) <> 0;
+  finally
+    FindClose(Search);
+  end;
 end;
 
 procedure TFxSourceRecorder.CleanupExpiredFiles();
@@ -296,12 +340,15 @@ begin
   if not DirectoryExists(FSettings.ArchivePath) then
     Exit;
   Cutoff := IncDay(Now, -FSettings.RetentionDays);
-  if FindFirst(TPath.Combine(FSettings.ArchivePath, '*.mp4'),
+  if FindFirst(TPath.Combine(FSettings.ArchivePath, '*.*'),
                faAnyFile, Search) <> 0 then
     Exit;
   try
     repeat
       if (Search.Attr and faDirectory) <> 0 then
+        Continue;
+      if not SameText(ExtractFileExt(Search.Name), '.mp4') and
+         not SameText(ExtractFileExt(Search.Name), '.avi') then
         Continue;
       FileName := TPath.Combine(FSettings.ArchivePath, Search.Name);
       if not TryGetLastWriteLocal(FileName, FileTime) then
@@ -347,7 +394,11 @@ begin
     FActiveStarted := Now;
   FNextBoundary := NextSplitBoundary(FActiveStarted);
   FActiveFinalName := UniqueFinalName(FActiveStarted);
-  FActivePartialName := FActiveFinalName + '.partial';
+  if IsAviProfile() then
+    FActivePartialName := FActiveFinalName + '.source.mp4.partial'
+  else
+    FActivePartialName := FActiveFinalName + '.partial';
+  FRebaser.Reset();
   FFileHandle := CreateFile(PChar(FActivePartialName), GENERIC_WRITE,
                             FILE_SHARE_READ, nil, CREATE_NEW,
                             FILE_ATTRIBUTE_NORMAL or
@@ -371,14 +422,52 @@ begin
   FBytesWritten := Length(InitBytes);
   FHadWriteError := False;
   FLastProgressTick := GetTickCount();
-  Event(relInfo, 'Recording started: ' + FActiveFinalName);
-  Event(relInfo, 'Current recording file: ' + FActiveFinalName);
+  Event(relInfo, 'Recording started: ' + FActivePartialName);
+  Event(relInfo, 'Final recording file: ' + FActiveFinalName);
+  Event(relInfo, 'Current recording file: ' + FActivePartialName);
   Result := True;
+end;
+
+procedure TFxSourceRecorder.QueueAviConversion(const ASourceFile,
+  AFinalFile: string);
+var
+  Conversion: TFxConversionThread;
+begin
+  Conversion := TFxConversionThread.Create(FindFxRecordFFmpeg(),
+    ASourceFile, AFinalFile + '.partial', AFinalFile);
+  FConversions.Add(Conversion);
+  Event(relInfo, 'AVI conversion started: ' + AFinalFile);
+  Conversion.Start();
+end;
+
+procedure TFxSourceRecorder.ReapConversions(const AWaitForAll: Boolean);
+var
+  I: Integer;
+  Conversion: TFxConversionThread;
+begin
+  for I := FConversions.Count - 1 downto 0 do
+    begin
+      Conversion := FConversions[I];
+      if AWaitForAll then
+        Conversion.WaitFor()
+      else if WaitForSingleObject(Conversion.Handle, 0) <> WAIT_OBJECT_0 then
+        Continue;
+
+      if Conversion.Succeeded then
+        Event(relInfo, 'AVI recording finalized: ' +
+                       Conversion.FinalFileName)
+      else
+        Event(relCritical, 'AVI conversion failed for ' +
+          Conversion.InputFileName + '. ' + Conversion.ErrorText +
+          ' The source MP4 has been kept.');
+      FConversions.Delete(I);
+    end;
 end;
 
 procedure TFxSourceRecorder.CloseSegment(const AReason: string);
 var
   Finalized: Boolean;
+  SourceFileName: string;
 begin
   if FFileHandle = INVALID_HANDLE_VALUE then
     Exit;
@@ -387,14 +476,33 @@ begin
   FFileHandle := INVALID_HANDLE_VALUE;
   Finalized := False;
   if not FHadWriteError then
-    Finalized := MoveFileEx(PChar(FActivePartialName),
-                            PChar(FActiveFinalName),
-                            MOVEFILE_WRITE_THROUGH);
+    begin
+      if IsAviProfile() then
+        begin
+          SourceFileName := FActiveFinalName + '.source.mp4';
+          Finalized := MoveFileEx(PChar(FActivePartialName),
+                                  PChar(SourceFileName),
+                                  MOVEFILE_WRITE_THROUGH);
+        end
+      else
+        Finalized := MoveFileEx(PChar(FActivePartialName),
+                                PChar(FActiveFinalName),
+                                MOVEFILE_WRITE_THROUGH);
+    end;
   if Finalized then
     begin
-      Event(relInfo, Format('Recording closed (%s): %s (%.1f MB)',
-        [AReason, FActiveFinalName, FBytesWritten / 1024 / 1024]));
-      CleanupExpiredFiles();
+      if IsAviProfile() then
+        begin
+          Event(relInfo, Format('Source recording closed (%s): %s (%.1f MB)',
+            [AReason, SourceFileName, FBytesWritten / 1024 / 1024]));
+          QueueAviConversion(SourceFileName, FActiveFinalName);
+        end
+      else
+        begin
+          Event(relInfo, Format('Recording closed (%s): %s (%.1f MB)',
+            [AReason, FActiveFinalName, FBytesWritten / 1024 / 1024]));
+          CleanupExpiredFiles();
+        end;
     end
   else if FHadWriteError then
     Event(relCritical, 'Recording kept as incomplete: ' + FActivePartialName)
@@ -411,11 +519,18 @@ function TFxSourceRecorder.AppendFragment(const AFileName: string;
                                           const ASequence: Int64): Boolean;
 var
   FragmentBytes: TBytes;
+  RebasedBytes: TBytes;
 begin
   Result := False;
   if not TryReadSharedBytes(AFileName, FragmentBytes) then
     Exit;
-  if not WriteAll(FFileHandle, FragmentBytes) then
+  if not FRebaser.Rebase(FragmentBytes, RebasedBytes) then
+    begin
+      Event(relCritical, 'Fragment has no usable fMP4 timeline: ' +
+                         AFileName);
+      Exit;
+    end;
+  if not WriteAll(FFileHandle, RebasedBytes) then
     begin
       FHadWriteError := True;
       Event(relCritical, 'Recording write failed for ' + FActivePartialName +
@@ -424,7 +539,7 @@ begin
       Exit;
     end;
   FlushFileBuffers(FFileHandle);
-  Inc(FBytesWritten, Length(FragmentBytes));
+  Inc(FBytesWritten, Length(RebasedBytes));
   FLastSequence := ASequence;
   Result := True;
 end;
@@ -454,7 +569,7 @@ begin
     Exit;
   FLastProgressTick := NowTick;
   Event(relInfo, Format('Current recording: %s (%.1f MB, fragment %d)',
-    [FActiveFinalName, FBytesWritten / 1024 / 1024, FLastSequence]));
+    [FActivePartialName, FBytesWritten / 1024 / 1024, FLastSequence]));
 end;
 
 procedure TFxSourceRecorder.ProcessManifest(const AManifest: TJSONObject);
@@ -471,6 +586,7 @@ var
   FragmentPath: string;
   InitPath: string;
 begin
+  ReapConversions(False);
   if not SameText(JsonText(AManifest, 'live'), 'true') then
     Exit;
   SessionId := JsonText(AManifest, 'sessionId');
@@ -535,6 +651,8 @@ end;
 procedure TFxSourceRecorder.Stop();
 begin
   CloseSegment('recorder stopped');
+  ReapConversions(True);
+  CleanupExpiredFiles();
 end;
 
 end.
