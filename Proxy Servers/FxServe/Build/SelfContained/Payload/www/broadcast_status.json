@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "active": false,
+  "state": "handover_ready",
+  "ownerId": "LTHP002-26572-435049359",
+  "owner": "Dj Playlist @ LTHP002",
+  "djName": "Dj Playlist",
+  "showName": "Owl Sessions",
+  "computerName": "LTHP002",
+  "processId": 26572,
+  "updated": "2026-09-02 20:50:33",
+  "heartbeatTick": 435343468,
+  "message": "Dj Playlist @ LTHP002 has finished. The next DJ can take over now."
+}

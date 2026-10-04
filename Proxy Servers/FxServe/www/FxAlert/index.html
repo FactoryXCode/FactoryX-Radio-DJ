@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#101820">
+  <meta name="description" content="FactoryX FxRecord monitoring and alarm console">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+  <link rel="stylesheet" href="app.css">
+  <title>FxAlert</title>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="mark" aria-hidden="true">FX</span>
+        <div><strong>FxAlert</strong><small>FactoryX recorder monitor</small></div>
+      </div>
+      <span id="connectionBadge" class="badge pending">Connecting</span>
+    </header>
+
+    <section id="alarmPanel" class="alarm hidden" role="alert" aria-live="assertive">
+      <div><small id="alarmKind">Attention required</small><h1 id="alarmTitle">Recorder alert</h1><p id="alarmText"></p></div>
+      <button id="ackButton" class="danger">Acknowledge</button>
+    </section>
+
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Current condition</p>
+        <h1 id="overallText">Checking FxRecord…</h1>
+        <p id="overallDetail">Waiting for the first heartbeat.</p>
+      </div>
+      <div id="pulse" class="pulse pending" aria-hidden="true"><span></span></div>
+    </section>
+
+    <section class="grid" aria-label="Recorder details">
+      <article class="card"><span>Recorder</span><strong id="recorderState">Checking</strong><small id="recorderHost">—</small></article>
+      <article class="card"><span>Broadcast stream</span><strong id="streamState">Checking</strong><small id="streamSession">No session data</small></article>
+      <article class="card"><span>Archive disk</span><strong id="diskState">Checking</strong><small id="diskFree">—</small></article>
+      <article class="card"><span>Last heartbeat</span><strong id="heartbeatAge">—</strong><small id="heartbeatTime">—</small></article>
+    </section>
+
+    <section class="controls">
+      <div><h2>Alert this device</h2><p id="permissionHelp">Enable sound and system notifications on this phone or computer.</p></div>
+      <div class="actions"><button id="enableButton" class="primary">Enable alerts</button><button id="installButton" class="secondary hidden">Install app</button></div>
+    </section>
+
+    <section class="last-event">
+      <h2>Latest recorder event</h2>
+      <p id="eventSubject">No alerts reported.</p>
+      <small id="eventTime"></small>
+    </section>
+
+    <footer>Keep FxAlert open for live alarms. Closed-app alerts will be added with secure push notifications.</footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
