@@ -14,7 +14,8 @@ renews, validates, and binds its certificate itself.
   
 - Concurrent client connections.
 - Static files rooted in one configured directory.
-- `GET`, `HEAD`, and `OPTIONS`.
+- `GET`, `HEAD`, and `OPTIONS`, plus same-origin JSON `POST` for FxAlert
+  subscription management.
 - Single HTTP byte ranges, including suffix and open-ended ranges.
 - HLS/fMP4 and common web/media MIME types.
 - Configurable CORS and no-cache routes.
@@ -34,6 +35,8 @@ renews, validates, and binds its certificate itself.
 - Optional per-client request-rate, burst, and concurrent-request limits at the
   public HTTP.sys edge, with HTTP `429` and `Retry-After` responses.
 - Automatic validated configuration reload in console and Windows-service mode.
+- Standards-based VAPID Web Push for FxAlert on Android, Apple, and Windows,
+  including warnings while the installed web app is closed.
   
 ## Build
   
@@ -144,6 +147,13 @@ MaxConnections=128
 HeaderTimeoutMs=10000
 SendTimeoutMs=30000
 
+[Push]
+Enabled=True
+Contact=mailto:admin@localhost
+PollIntervalMs=5000
+SubscriptionFile=.\FxAlert.subscriptions.dat
+VapidKeyFile=.\FxAlert.vapid.dat
+
 [Proxy]
 Enabled=True
 Host=127.0.0.1
@@ -152,7 +162,7 @@ Routes=/live,/status,/video.mjpg
 
 [Headers]
 Cors=True
-NoStoreRoutes=/stream,/video,/nowplaying.json
+NoStoreRoutes=/stream,/video,/nowplaying.json,/fxalert/status.json
 
 [Logging]
 File=FxServe.log
@@ -174,6 +184,28 @@ HttpsEnabled=True
 HttpsPort=443
 RedirectHttp=True
 ```
+
+### FxAlert secure Web Push
+
+When `[Push] Enabled=True`, FxServe creates one P-256 VAPID key on first start
+and exposes only its public half to FxAlert. Replace `Push Contact` with a real
+`mailto:` address or an HTTPS contact URL before production deployment. The
+private key and browser subscription endpoints are encrypted with Windows DPAPI
+for the local machine in the two configured `.dat` files. Preserve both files
+during upgrades and backups; deleting the VAPID key requires every device to
+subscribe again.
+
+FxServe watches `www\FxAlert\status.json`. A new warning, critical condition,
+stopped state, or a heartbeat that remains stale for 60 seconds triggers an
+authenticated empty push. No recorder details pass through Google, Apple,
+Mozilla, or Microsoft push infrastructure. The awakened FxAlert service worker
+fetches the current status directly from FxServe over HTTPS and displays the
+notification.
+
+Open `https://YOUR-HOST/FxAlert/` and choose **Enable alerts** on each device.
+Android and Windows browsers can subscribe directly. On iPhone and iPad, first
+add FxAlert to the Home Screen, open that installed web app, and then enable
+alerts. The permission request must be initiated by that button press.
   
 Keep port 8080 private when FxServe operates on a WAN. Forward public router
 ports 80 and 443 to the same ports on the FxServe server; HTTP.sys then forwards

@@ -166,9 +166,6 @@ type
   TLWFileBrowserExFilter = (fbxAudio,
                             fbxGraphics);
 
-  TLWFileBrowserExSelectionMode = (fbsmFile,
-                                    fbsmFolder);
-
   TLWFileBrowserExDlg = class(TForm)
     pnlTop: TPanel;
     lblLocation: TLabel;
@@ -218,7 +215,6 @@ type
   private
 
     FSelectedFilter: TLWFileBrowserExFilter;
-    FSelectionMode: TLWFileBrowserExSelectionMode;
     FSelectedFile: TFileName;
     FSelectedFilePath: string;
     FFileDuration: string;
@@ -258,8 +254,6 @@ type
     procedure UpdateDuration();
     procedure SetSelectedFilter(AValue: TLWFileBrowserExFilter);
     function GetSelectedFilter(): TLWFileBrowserExFilter;
-    procedure SetSelectionMode(const AValue: TLWFileBrowserExSelectionMode);
-    function GetSelectedDirectory(): string;
     function IsGraphicFile(const AFileName: string): Boolean;
     function IsAudioFile(const AFileName: string): Boolean;
     function IsUncPath(const APath: string): Boolean;
@@ -284,10 +278,8 @@ type
   published
 
     property FileFilter: TLWFileBrowserExFilter read GetSelectedFilter write SetSelectedFilter default fbxAudio;
-    property SelectionMode: TLWFileBrowserExSelectionMode read FSelectionMode write SetSelectionMode default fbsmFile;
     property FileName: TFileName read FSelectedFile;
     property FileURI: string read FSelectedFilePath;
-    property SelectedDirectory: string read GetSelectedDirectory;
     property AudioDuration: string read FFileDuration;
   end;
 
@@ -296,12 +288,7 @@ function BrowseLWFileEx(const AOwner: TComponent;
                         out AFileName: TFileName;
                         out AFileURI: string;
                         out AAudioDuration: string;
-                         const AInitialDirectory: string = ''): Boolean;
-
-function BrowseLWFolderEx(const AOwner: TComponent;
-                          out ADirectory: string;
-                          const AInitialDirectory: string = '';
-                          const ACaption: string = 'Select a folder'): Boolean;
+                        const AInitialDirectory: string = ''): Boolean;
 
 var
   DlgLWFileBrowserEx: TLWFileBrowserExDlg;
@@ -310,28 +297,6 @@ var
 implementation
 
 {$R *.dfm}
-
-
-function BrowseLWFolderEx(const AOwner: TComponent;
-                          out ADirectory: string;
-                          const AInitialDirectory: string = '';
-                          const ACaption: string = 'Select a folder'): Boolean;
-var
-  Dlg: TLWFileBrowserExDlg;
-begin
-  ADirectory := '';
-  Dlg := TLWFileBrowserExDlg.Create(AOwner);
-  try
-    Dlg.SelectionMode := fbsmFolder;
-    Dlg.Caption := ACaption;
-    Dlg.SetInitialDirectory(AInitialDirectory);
-    Result := Dlg.ShowModal() = mrOk;
-    if Result then
-      ADirectory := Dlg.SelectedDirectory;
-  finally
-    Dlg.Free();
-  end;
-end;
 
 
 function BrowseLWFileEx(const AOwner: TComponent;
@@ -378,7 +343,6 @@ begin
   FUpdatingUi := False;
   FNetworkScanRunning := False;
   FSelectedFilter := fbxAudio;
-  FSelectionMode := fbsmFile;
   FSelectedFile := '';
   FSelectedFilePath := '';
   FFileDuration := '';
@@ -432,11 +396,7 @@ end;
 procedure TLWFileBrowserExDlg.btnOkClick(Sender: TObject);
 begin
 
-  if (FSelectionMode = fbsmFolder) and
-     (not IsNetworkServerPath(FCurrentDirectory)) and
-     System.SysUtils.DirectoryExists(FCurrentDirectory) then
-    ModalResult := mrOk
-  else if (FSelectionMode = fbsmFile) and FileExists(FSelectedFilePath) then
+  if FileExists(FSelectedFilePath) then
     ModalResult := mrOk;
 end;
 
@@ -1125,15 +1085,10 @@ begin
   FSelectedFilePath := '';
   FFileDuration := '';
 
-  if FSelectionMode = fbsmFolder then
-    lblSelectedFile.Caption := 'Selected folder: ' + GetSelectedDirectory()
-  else
-    lblSelectedFile.Caption := 'Selected file:';
+  lblSelectedFile.Caption := 'Selected file:';
   lblSelectedFile.Hint := '';
 
-  if FSelectionMode = fbsmFolder then
-    lblDuration.Caption := ''
-  else if (FSelectedFilter = fbxAudio) then
+  if (FSelectedFilter = fbxAudio) then
     lblDuration.Caption := 'Duration: 00:00:00'
   else
     lblDuration.Caption := 'Image preview';
@@ -1148,50 +1103,7 @@ end;
 procedure TLWFileBrowserExDlg.UpdateOkState();
 begin
 
-  if FSelectionMode = fbsmFolder then
-    btnOk.Enabled := (not IsNetworkServerPath(FCurrentDirectory)) and
-                     System.SysUtils.DirectoryExists(FCurrentDirectory)
-  else
-    btnOk.Enabled := FileExists(FSelectedFilePath);
-end;
-
-
-function TLWFileBrowserExDlg.GetSelectedDirectory(): string;
-begin
-  Result := NormalizeDirectory(FCurrentDirectory);
-  if not ((Length(Result) = 3) and (Result[2] = ':') and
-          (Result[3] = '\')) then
-    Result := ExcludeTrailingPathDelimiter(Result);
-end;
-
-
-procedure TLWFileBrowserExDlg.SetSelectionMode(
-  const AValue: TLWFileBrowserExSelectionMode);
-begin
-  if FSelectionMode = AValue then
-    Exit;
-
-  FSelectionMode := AValue;
-  if FSelectionMode = fbsmFolder then
-    begin
-      cbxFileFilter.Visible := False;
-      flbFiles.Visible := False;
-      Splitter1.Visible := False;
-      SplitterPreview.Visible := False;
-      pnlPreview.Visible := False;
-      pnlLeft.Align := alClient;
-      lblDuration.Visible := False;
-    end
-  else
-    begin
-      cbxFileFilter.Visible := True;
-      pnlLeft.Align := alLeft;
-      Splitter1.Visible := True;
-      flbFiles.Visible := True;
-      lblDuration.Visible := True;
-      SetSelectedFilter(FSelectedFilter);
-    end;
-  ClearSelection();
+  btnOk.Enabled := FileExists(FSelectedFilePath);
 end;
 
 

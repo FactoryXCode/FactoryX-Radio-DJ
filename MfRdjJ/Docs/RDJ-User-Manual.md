@@ -74,10 +74,6 @@ Changing audio devices or deck counts causes RDJ to rebuild its audio layout.
 
 ### Audio recorder
 
-The Audio Recorder makes a local audio-only copy. It records the source selected in the Master deck: an audio endpoint, the clean master mix before master effects (**Pre-FX**), or the final master mix after master effects (**Post-FX**). It does not record video, the broadcast page, programme titles, or a programme log.
-
-This recorder is useful for making a show recording, podcast master, or production copy. It is not the RDJ Pro compliance recorder and does not by itself create the complete broadcast archive required by a media authority.
-
 | Control | What it does |
 |---|---|
 | Output format | Chooses the recording file format, such as WAV or FLAC. |
@@ -144,9 +140,9 @@ If Icecast and Caddy run on a separate server, local executable and command path
 | PFL volume | Sets the headphone-preview volume. |
 | PFL Mute | Silences the headphone-preview output. |
 | Filename | Sets the name of a new audio recording. RDJ adds the file extension. |
-| Device | Records the selected Windows audio endpoint. Use this for an external input or another application's output. |
-| Pre-FX | Records RDJ's complete master mix before the master effects rack. |
-| Post-FX | Records RDJ's final master mix after the master effects rack—the sound sent to the main output. |
+| Device | Chooses an audio endpoint as the recorder source. |
+| Pre-FX | Records the clean mix before master effects. |
+| Post-FX | Records the mix after master effects. |
 | Start | Starts or stops audio recording. |
 | Recording and time indicators | Show whether recording is active and how long it has run. |
 | Level displays | Show the main and PFL output levels. |
