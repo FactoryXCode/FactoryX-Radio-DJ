@@ -51,7 +51,7 @@ MfPack Cast V2 protocols.
 An extra tool FxRecord is provided for broadcast stations that needs to record their broadcasts by law.
 FxRecord is intended to run on a local server as a Windows service.
 FxRecordAdmin is a tool that is able to control FxRecord within the local network.
-An FxAlert App running on smartphones or pc's is provided to watch and alert admins of the recording/server status.
+An FxAlert App running on smartphones or pc's is provided to watch FxRecord and alert admins of the recording/server status.
   
 **Note:**  
 Before using this sample make sure, you have all needed components installed (see instructions).  
