@@ -1,92 +1,148 @@
 # FxRecord Admin
 
 FxRecord Admin is a Delphi VCL desktop application for administering the
-FactoryX FxRecord Windows service on a local Windows network. It uses Windows'
-Service Control Manager and SMB file shares; it needs no web endpoint, cloud
-account, public port forwarding, or third-party server software.
+FactoryX FxRecord Windows service over a local Windows network. It uses
+Windows' Service Control Manager and SMB file shares. No additional server
+software, web endpoint, cloud account or public port forwarding is required.
 
-## Connect
+## Connecting
 
-1. Install the existing FxRecord Windows service on the broadcast server.
-2. Share the folder containing the INI used by that service, for example share
-   C:\FxRecord as FxRecord. Give the administrator's Windows account read/write
-   access to the INI directory and read access to the log.
-3. Run FxRecordAdmin.exe on the administrator's Windows PC.
-4. Enter the LAN computer name (or LAN IPv4 address), and the shared INI:
-   \\RADIO-SERVER\FxRecord\FxRecord.ini. Click **Connect / reload**.
+1. Install the FxRecord Windows service on the broadcast server.
+2. Share the folder containing the service's INI. For example, share
+   `C:\FxRecord` as `FxRecord`. Give the administrator's Windows account
+   read and write access to the configuration folder and read access to the log.
+3. Run `FxRecordAdmin.exe` on the administrator's Windows PC.
+4. Enter the server's LAN computer name or IPv4 address and shared INI path,
+   such as `\\RADIO-SERVER\FxRecord\FxRecord.ini`. Select **Connect / reload**.
 
-The **Service INI** field shows the server-local filename from the registered
-FxRecord service command. The share must map to that same INI file.
-Custom INI filenames registered with --config are supported. The app manages
-only the service named FxRecord whose registered executable is FxRecord.exe.
+For PCHP001, use:
 
-For administration on the server itself, enter "." as the computer name and
-a local INI filename. A connection profile is saved under the current user's
-HKCU\Software\FactoryX\FxRecordAdmin key. Passwords are not stored.
+```text
+LAN server: PCHP001
+Shared INI: \\PCHP001\FxRecord\FxRecord.ini
+```
+
+The **Service INI** field shows the local filename from the registered service
+command, for example `C:\FxRecord\FxRecord.ini`. The shared path must refer to
+that same file. Custom INI filenames registered with `--config` are supported.
+The application manages the service named `FxRecord` whose registered
+executable is `FxRecord.exe`.
+
+For administration on the server itself, enter `.` as the computer name and
+a local INI filename. The connection profile is stored under the current
+user's `HKCU\Software\FactoryX\FxRecordAdmin` registry key.
 
 ## Windows access and LAN firewall
 
-The signed-in Windows identity needs service query/configuration-read,
-start and stop permissions on FxRecord, plus access to the shared directory.
-Membership in the server's Administrators group is one way to provide these
-permissions; rights may also be delegated for just this service and share.
-Run the app elevated when administering a local service that requires it.
+The signed-in Windows account needs permission to query the service's status
+and configuration, start and stop FxRecord, and access the shared directory.
+Membership of the server's Administrators group is one way to grant these
+permissions; access can also be delegated for this service and share.
+Run the application elevated when local service permissions require it.
 
 On the broadcast server, enable the built-in **Remote Service Management**
-rules and the **File and Printer Sharing (SMB-In)** rule as needed. Limit the
-rules to **Domain/Private** profiles and remote addresses **Local subnet**, or
-the specific admin PCs. Keep them disabled on the Public profile.
-No router port forwarding is required.
+rules and **File and Printer Sharing (SMB-In)** rule as required. Limit them
+to **Domain/Private** profiles and **Local subnet**, or specific administrator
+PC addresses. Keep them disabled on the Public profile. These firewall
+settings restrict access to the LAN; no router port forwarding is required.
 
-Remote service control uses Windows RPC, and shared INI/log access uses SMB.
-If RPC or SMB is blocked, the app reports the Windows error; a remote SCM
-connection can take time to time out, so network operations run in a worker.
+Remote service control uses Windows RPC; configuration and log access use
+SMB. Network operations run in a background worker because connection
+requests may take time to return. Windows errors appear in **Admin activity**.
 See Microsoft's [Service Control Manager documentation](https://learn.microsoft.com/en-us/windows/win32/services/service-control-manager)
 and [RPC transport documentation](https://learn.microsoft.com/en-us/windows/win32/services/services-and-rpc-tcp).
 
-Windows account credentials are used by both SCM and SMB. For a different
-account, launch the app using Windows **Run as different user**; the app has
-no separate password database.
+Both connections use the Windows account's credentials. To use another
+account, launch the application with **Run as different user**.
+The application does not store passwords.
 
-## Administration
+## Service control and recording settings
 
-- Query the service's state, process ID and exit codes.
-- Start, stop or restart FxRecord, waiting for the actual final service state.
-- Edit recording folders, rotation, retention, polling, disk thresholds, live
-  timeout, output profile and the MP3/AAC sample rates and bitrates.
-- **Save (stopped)** saves configuration while the service is stopped.
-- **Save & restart** stops a running service, saves configuration and restarts
-  it. If it was already stopped, it stays stopped.
-- View the last 128 KiB of the service log, FxAlert status and admin activity.
-- Refresh service state and log/status files every five seconds after connecting.
+- View service state, process ID and exit codes.
+- Start, stop or restart FxRecord and wait for the final service state.
+- Edit recording folders, rotation, retention, polling, disk thresholds,
+  live timeout, output profile and MP3/AAC sample rates and bitrates.
+- **Save (stopped)** saves the configuration while the service is stopped.
+- **Save & restart** stops a running service, saves the configuration and
+  restarts it. A service that was already stopped remains stopped.
+- View the last 128 KiB of the log, FxAlert status and admin activity.
 
-Folder values are paths on the server. Relative paths remain relative to the
-server's INI, rather than being resolved on the administrator's PC.
-Unknown INI settings survive edits. Every save creates a timestamped .bak
-beside the INI, stages a UTF-8 temporary file, and replaces the INI.
-A save is refused if another program changed the INI since it was loaded.
-Reconnect to reload those changes.
+Folder settings refer to paths on the server. Relative paths remain relative
+to the server's INI. For PCHP001, the stream path is `C:\FxServe\www\Stream`
+and the archive path is `F:\ComplianceRecordings`.
 
-Stopping waits for FxRecord to complete active recordings and queued conversions.
-A command that has not completed after two minutes is reported as still pending.
-The UI remains responsive and blocks overlapping commands and closing during
-a service command. Auto-refresh keeps unsaved recorder settings and service buttons available. A command clicked during refresh is queued until that read finishes; duplicate clicks cannot create overlapping operations. Save buttons remain available in their valid service states, including when the loaded settings have no edits. Close during refresh hides the window immediately and completes shutdown after the read returns.
-If a save fails after stopping, the app attempts to restart the prior configuration.
-If starting the saved configuration fails, the activity log identifies the saved
-configuration and the service error; the backup remains available.
+The output profiles and supported audio settings are described in the
+[FxRecord README](../README.md). MP3 and AAC controls are available for their
+matching profiles.
 
-FxAlert status is read from the server stream folder's sibling FxAlert/status.json.
-If that path is outside the configuration share, the app attempts the corresponding
-Windows drive administrative share (such as C$), which may need additional access.
-A missing log or status file does not prevent service administration.
+## Background refresh and buttons
 
-## Build and checks
+After connecting, the application refreshes service state, logs and status
+five seconds after the previous operation finishes. Refresh leaves unsaved
+settings intact and keeps the service and save buttons available when the
+service state permits their actions.
 
-Open FxRecordAdmin.dproj in Delphi. The project uses VCL, Windows APIs and the
-shared FxRecord.Config unit. Editable form: frmFxRecordAdmin.dfm.
+A command selected during refresh is queued until that read completes, then
+runs once. Further clicks cannot create overlapping commands. During an
+actual service command or save, controls are temporarily disabled until the
+operation completes.
 
-Win64 and Win32 executable output: Win64/Debug and Win32/Debug.
-Checks/AdminChecks.dpr verifies command parsing, connection paths, configuration
-validation/round trips, native form loading, service button states, refresh command queuing and retention
-of unsaved edits during refresh. It does not start or stop a real service.
-A live LAN test requires a server and an account with the permissions above.
+Save buttons remain available even when the loaded settings have no edits.
+**Save (stopped)** requires a stopped service; **Save & restart** is available
+when the service is running or stopped.
+
+**Close** during background refresh hides the window immediately. The
+application finishes closing when the read returns. Closing waits for an
+active or queued service command or configuration save to finish.
+
+## Configuration saves and logs
+
+Every save preserves unknown INI settings, creates a timestamped `.bak` file
+beside the INI, stages a UTF-8 temporary file and replaces the configuration.
+If another program has changed the INI since it was loaded, the save is
+refused. Select **Connect / reload** to load the current version.
+
+If a save fails after stopping a running service, the application attempts
+to restart the previous configuration. If the saved configuration cannot
+start, **Admin activity** reports the saved settings and service error;
+the backup remains available.
+
+Stopping waits for active recordings and queued conversions to finish.
+A command still pending after two minutes is reported so its status can
+be refreshed before another command is attempted.
+
+The log is beside the selected INI: `FxRecord.ini` produces `FxRecord.log`.
+FxRecord writes it in desktop and service modes, including installation and
+startup diagnostics. On PCHP001, the shared log is
+`\\PCHP001\FxRecord\FxRecord.log`. The recording account needs write access,
+and the administrator needs read access.
+
+FxAlert status is read from `FxAlert\status.json` beside the configured
+stream folder. If it lies outside the configuration share, the application
+tries the corresponding Windows drive administrative share, such as `C$`.
+That share may require additional permissions. A missing log or status file
+does not prevent service administration.
+
+## Building and checks
+
+Open `FxRecordAdmin.dproj` in Delphi. The project uses VCL, Windows APIs and
+the shared `FxRecord.Config` unit. The editable form is
+`frmFxRecordAdmin.dfm`. Win64 and Win32 executables are built in
+`Win64\Debug` and `Win32\Debug`.
+
+`Checks\AdminChecks.dpr` verifies command parsing, connection paths,
+configuration validation and round trips, native form loading, service and
+save button states, command queuing, retention of unsaved edits and closing
+during refresh. These checks simulate service results; they do not start or
+stop a real service. A live LAN check requires a server and an account with
+the permissions described above.
+
+Project location:  
+https://github.com/FactoryXCode/MfPack  
+https://github.com/FactoryXCode/FactoryX-Radio-DJ
+https://sourceforge.net/projects/MFPack  
+ 
+First release date: 09/07/2023  
+Final release date: 10/10/2026
+ 
+Copyright © FactoryX. All rights reserved.
