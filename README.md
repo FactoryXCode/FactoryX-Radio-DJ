@@ -53,7 +53,7 @@ An extra tool FxRecord is provided for broadcast stations that needs to record t
 **Note:**  
 Before using this sample make sure, you have all needed components installed (see instructions).  
   
-![]https://github.com/FactoryXCode/FactoryX-Radio-DJ/blob/main/Pic/RDJPro_Interface_s.png)
+![](https://github.com/FactoryXCode/FactoryX-Radio-DJ/blob/main/Pic/RDJPro_Interface_s.png)
   
 ---
   
