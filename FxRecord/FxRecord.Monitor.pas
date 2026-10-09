@@ -1,14 +1,77 @@
-﻿unit FxRecord.Monitor;
+// FactoryX
+//
+// Copyright (c) FactoryX, Netherlands/Australia/Germany. All rights reserved.
+//
+// Project: Media Foundation - MFPack - Samples
+// Project location: https://sourceforge.net/projects/MFPack
+//                   https://github.com/FactoryXCode/MfPack
+// Module: FxRecord.Monitor.pas
+// Kind: Pascal Unit
+// Release date: 10-08-2026
+// Language: ENU
+//
+// Revision Version: 4.0.0
+// Description: Monitors stream and system health and publishes FxAlert status.
+//
+// Company: FactoryX
+// Intiator(s): Tony (maXcomX), Carmen (carmenh).
+// Contributor(s): Tony Kalf (maXcomX), Carmen (carmenh).
+//
+//------------------------------------------------------------------------------
+// CHANGE LOG
+// Date       Person              Reason
+// ---------- ------------------- ----------------------------------------------
+// 24/08/2026 All                 Moby release  SDK 10.0.28000.2705  (Windows 11)
+//------------------------------------------------------------------------------
+//
+// Remarks: Requires Windows 10 or higher.
+//
+// Related objects: -
+// Related projects: MfPackX400
+// Known Issues: -
+//
+// Compiler version: 23 up to 35
+// SDK version: 10.0.28000.2705
+//
+// Todo: -
+//
+// =============================================================================
+// Source: -
+//==============================================================================
+//
+// LICENSE
+//
+// The contents of this file are subject to the Mozilla Public License
+// Version 2.0 (the "License"); you may not use this file except in
+// compliance with the License. You may obtain a copy of the License at
+// https://mozilla.org/MPL/2.0/
+//
+// Software distributed under the License is distributed on an "AS IS"
+// basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+// License for the specific language governing rights and limitations
+// under the License.
+//
+// Non commercial users may distribute this sourcecode provided that this
+// header is included in full at the top of the file.
+// Commercial users are not allowed to distribute this sourcecode as part of
+// their product.
+//
+//==============================================================================
+unit FxRecord.Monitor;
 
 interface
 
 uses
-  Winapi.Windows,
-  Winapi.Messages,
+
+  {WinApi}
+  WinApi.Windows,
+  WinApi.Messages,
+  {System}
   System.SysUtils,
   System.Classes,
   System.SyncObjs,
   System.Generics.Collections,
+  {Application}
   FxRecord.Config,
   FxRecord.Recorder;
 
@@ -16,13 +79,17 @@ const
   WM_FXRECORD_NOTICE = WM_APP + $520;
 
 type
-  TFxRecordNoticeLevel = (fnInfo, fnWarning, fnCritical, fnRecovery);
+  TFxRecordNoticeLevel = (fnInfo,
+                          fnWarning,
+                          fnCritical,
+                          fnRecovery);
 
   PFxRecordNotice = ^TFxRecordNotice;
   TFxRecordNotice = record
     Level: TFxRecordNoticeLevel;
     Text: string;
   end;
+
 
   TFxRecordMonitor = class(TThread)
   private
@@ -52,58 +119,78 @@ type
     FUpdateCheckProcess: THandle;
     FLastUpdateCheckTick: UInt64;
     FUpdatesWaiting: Boolean;
+
     procedure Notice(const ALevel: TFxRecordNoticeLevel;
                      const AText: string);
-    procedure Alert(const AKey,
-                    ASubject,
-                    AText: string;
+
+    procedure Alert(const AKey: string;
+                    const ASubject: string;
+                    const AText: string;
                     const ALevel: TFxRecordNoticeLevel);
+
     procedure CheckDisk();
     procedure CheckLiveManifest();
     procedure CheckWindowsRestart();
     procedure CheckWindowsUpdates();
+
     procedure RecorderEvent(const ALevel: TFxRecorderEventLevel;
                             const AText: string);
+
     function StatusFileName(): string;
+
     procedure PublishStatus(const AStopped: Boolean = False;
                             const AForce: Boolean = False);
   protected
     procedure Execute(); override;
+
   public
+
     constructor Create(const AWindowHandle: HWND;
                        const ASettings: TFxRecordSettings;
                        const ALogFileName: string = '');
+
     destructor Destroy(); override;
     procedure Stop();
   end;
 
+
 implementation
 
 uses
+
+  {System}
   System.DateUtils,
   System.IOUtils,
   System.JSON,
   System.Win.Registry;
 
+
 function JsonText(const AObject: TJSONObject;
                   const AName: string): string;
 var
   Pair: TJSONPair;
+
 begin
+
   Result := '';
   Pair := AObject.Get(AName);
+
   if Assigned(Pair) and Assigned(Pair.JsonValue) then
     Result := Pair.JsonValue.Value;
 end;
 
+
 function UtcText(): string;
 begin
+
   Result := FormatDateTime('yyyy-mm-dd"T"hh:nn:ss.zzz"Z"',
                            TTimeZone.Local.ToUniversalTime(Now));
 end;
 
+
 function NoticeLevelText(const ALevel: TFxRecordNoticeLevel): string;
 begin
+
   case ALevel of
     fnWarning: Result := 'warning';
     fnCritical: Result := 'critical';
@@ -113,11 +200,13 @@ begin
   end;
 end;
 
+
 function TryReadSharedTextFile(const AFileName: string;
                                out AText: string;
                                out ALastWriteUtc: TDateTime): Boolean;
 const
   MAX_MANIFEST_BYTES = 1024 * 1024;
+
 var
   FileHandle: THandle;
   FileSize: DWORD;
@@ -127,63 +216,101 @@ var
   TotalRead: Integer;
   LastWriteTime: TFileTime;
   SystemTime: TSystemTime;
+
 begin
+
   Result := False;
   AText := '';
   ALastWriteUtc := 0;
-  FileHandle := CreateFile(PChar(AFileName), GENERIC_READ,
-                           FILE_SHARE_READ or FILE_SHARE_WRITE or
-                           FILE_SHARE_DELETE, nil, OPEN_EXISTING,
+
+  FileHandle := CreateFile(PChar(AFileName),
+                           GENERIC_READ,
+                           FILE_SHARE_READ or FILE_SHARE_WRITE or FILE_SHARE_DELETE,
+                           nil,
+                           OPEN_EXISTING,
                            FILE_ATTRIBUTE_NORMAL or FILE_FLAG_SEQUENTIAL_SCAN,
                            0);
-  if FileHandle = INVALID_HANDLE_VALUE then
+
+  if (FileHandle = INVALID_HANDLE_VALUE) then
     Exit;
+
   try
     FileSizeHigh := 0;
     SetLastError(NO_ERROR);
-    FileSize := GetFileSize(FileHandle, @FileSizeHigh);
+    FileSize := GetFileSize(FileHandle,
+                            @FileSizeHigh);
+
     if ((FileSize = INVALID_FILE_SIZE) and (GetLastError() <> NO_ERROR)) or
-       (FileSizeHigh <> 0) or (FileSize = 0) or
+       (FileSizeHigh <> 0) or
+       (FileSize = 0) or
        (FileSize > MAX_MANIFEST_BYTES) then
       Exit;
-    if not GetFileTime(FileHandle, nil, nil, @LastWriteTime) or
-       not FileTimeToSystemTime(LastWriteTime, SystemTime) then
+
+    if not GetFileTime(FileHandle,
+                       nil,
+                       nil,
+                       @LastWriteTime) or
+       not FileTimeToSystemTime(LastWriteTime,
+                                SystemTime) then
       Exit;
 
-    SetLength(Bytes, Integer(FileSize));
+    SetLength(Bytes,
+              Integer(FileSize));
     TotalRead := 0;
-    while TotalRead < Length(Bytes) do
+
+    while (TotalRead < Length(Bytes)) do
       begin
         BytesRead := 0;
-        if not ReadFile(FileHandle, Bytes[TotalRead],
-                        Length(Bytes) - TotalRead, BytesRead, nil) or
+
+        if not ReadFile(FileHandle,
+                        Bytes[TotalRead],
+                        Length(Bytes) - TotalRead,
+                        BytesRead,
+                        nil) or
            (BytesRead = 0) then
           Exit;
-        Inc(TotalRead, BytesRead);
+
+        Inc(TotalRead,
+            BytesRead);
       end;
 
     ALastWriteUtc := SystemTimeToDateTime(SystemTime);
     AText := TEncoding.UTF8.GetString(Bytes);
+
     if (AText <> '') and (AText[1] = #$FEFF) then
-      Delete(AText, 1, 1);
+      Delete(AText,
+             1,
+             1);
+
     Result := True;
+
   finally
     CloseHandle(FileHandle);
   end;
 end;
 
+
 constructor TFxRecordMonitor.Create(const AWindowHandle: HWND;
                                     const ASettings: TFxRecordSettings;
                                     const ALogFileName: string);
 begin
+
   inherited Create(True);
+
   FreeOnTerminate := False;
   FWindowHandle := AWindowHandle;
   FSettings := ASettings;
   FLogFileName := ALogFileName;
-  FStopEvent := TEvent.Create(nil, True, False, '');
-  FAlertTicks := TDictionary<string, UInt64>.Create();
-  FRecorder := TFxSourceRecorder.Create(FSettings, RecorderEvent);
+  FStopEvent := TEvent.Create(nil,
+                              True,
+                              False,
+                              '');
+
+  FAlertTicks := TDictionary<string,
+                             UInt64>.Create();
+
+  FRecorder := TFxSourceRecorder.Create(FSettings,
+                                        RecorderEvent);
   FDiskState := -1;
   FDiskFreeGB := -1;
   FLiveState := -1;
@@ -199,46 +326,65 @@ begin
   FUpdatesWaiting := False;
 end;
 
+
 destructor TFxRecordMonitor.Destroy();
 begin
-  if FUpdateCheckProcess <> 0 then
+
+  if (FUpdateCheckProcess <> 0) then
     CloseHandle(FUpdateCheckProcess);
+
   FRecorder.Free();
   FAlertTicks.Free();
   FStopEvent.Free();
+
   inherited Destroy();
 end;
 
+
 procedure TFxRecordMonitor.Stop();
 begin
+
   Terminate();
   FStopEvent.SetEvent();
 end;
+
 
 procedure TFxRecordMonitor.Notice(const ALevel: TFxRecordNoticeLevel;
                                   const AText: string);
 var
   Item: PFxRecordNotice;
   Line: string;
+
 begin
-  if FLogFileName <> '' then
+
+  if (FLogFileName <> '') then
     begin
       try
         Line := FormatDateTime('yyyy-mm-dd hh:nn:ss', Now) + ' [' +
-                UpperCase(NoticeLevelText(ALevel)) + '] ' + AText + sLineBreak;
-        TFile.AppendAllText(FLogFileName, Line, TEncoding.UTF8);
+                               UpperCase(NoticeLevelText(ALevel)) + '] ' + AText + sLineBreak;
+
+        TFile.AppendAllText(FLogFileName,
+                            Line,
+                            TEncoding.UTF8);
       except
         { Logging must never stop compliance recording. }
       end;
     end;
-  if FWindowHandle = 0 then
+
+  if (FWindowHandle = 0) then
     Exit;
+
   New(Item);
   Item^.Level := ALevel;
   Item^.Text := AText;
-  if not PostMessage(FWindowHandle, WM_FXRECORD_NOTICE, 0, LPARAM(Item)) then
+
+  if not PostMessage(FWindowHandle,
+                     WM_FXRECORD_NOTICE,
+                     0,
+                     LPARAM(Item)) then
     Dispose(Item);
 end;
+
 
 procedure TFxRecordMonitor.Alert(const AKey,
                                  ASubject,
@@ -247,150 +393,209 @@ procedure TFxRecordMonitor.Alert(const AKey,
 var
   NowTick: UInt64;
   PreviousTick: UInt64;
+
 begin
+
   NowTick := GetTickCount();
-  if FAlertTicks.TryGetValue(AKey, PreviousTick) and
+
+  if FAlertTicks.TryGetValue(AKey,
+                             PreviousTick) and
      ((NowTick - PreviousTick) < 60000) then
     Exit;
 
   FAlertTicks.AddOrSetValue(AKey, NowTick);
-  FLastAlertId := FormatDateTime('yyyymmddhhnnsszzz', Now) + '-' + AKey;
+  FLastAlertId := FormatDateTime('yyyymmddhhnnsszzz',
+                                 Now) + '-' + AKey;
+
   FLastAlertKey := AKey;
   FLastAlertSeverity := NoticeLevelText(ALevel);
   FLastAlertSubject := ASubject;
   FLastAlertText := AText;
   FLastAlertUtc := UtcText();
-  Notice(ALevel, AText);
+  Notice(ALevel,
+         AText);
 end;
+
 
 procedure TFxRecordMonitor.CheckWindowsUpdates();
 const
   CHECK_INTERVAL_MS: UInt64 = 6 * 60 * 60 * 1000;
   UPDATE_WAITING_EXIT_CODE = 10;
+
 var
   ProcessInfo: TProcessInformation;
   StartupInfo: TStartupInfo;
   CommandLine: string;
   ExitCode: DWORD;
   NowTick: UInt64;
+
 begin
+
   NowTick := GetTickCount();
-  if FUpdateCheckProcess <> 0 then
+
+  if (FUpdateCheckProcess <> 0) then
     begin
-      if WaitForSingleObject(FUpdateCheckProcess, 0) <> WAIT_OBJECT_0 then
+      if WaitForSingleObject(FUpdateCheckProcess,
+                             0) <> WAIT_OBJECT_0 then
         Exit;
+
       ExitCode := DWORD(-1);
-      GetExitCodeProcess(FUpdateCheckProcess, ExitCode);
+      GetExitCodeProcess(FUpdateCheckProcess,
+                         ExitCode);
+
       CloseHandle(FUpdateCheckProcess);
       FUpdateCheckProcess := 0;
-      if ExitCode = UPDATE_WAITING_EXIT_CODE then
+
+      if (ExitCode = UPDATE_WAITING_EXIT_CODE) then
         begin
           if not FUpdatesWaiting then
             Alert('windows-updates-waiting',
-              'WARNING: Windows updates are waiting',
-              'Windows updates are available. Install them during a planned maintenance window.',
-              fnWarning);
+                  'WARNING: Windows updates are waiting',
+                  'Windows updates are available. Install them during a planned maintenance window.',
+                  fnWarning);
           FUpdatesWaiting := True;
         end
-      else if ExitCode = 0 then
-        begin
-          if FUpdatesWaiting then
-            begin
-              Notice(fnRecovery, 'No Windows updates are waiting for installation.');
-              FAlertTicks.Remove('windows-updates-waiting');
-            end;
-          FUpdatesWaiting := False;
-        end
       else
-        Notice(fnWarning, Format(
-          'The Windows Update availability check failed (exit code %d).',
-          [ExitCode]));
-      Exit;
-    end;
+        if (ExitCode = 0) then
+          begin
+            if FUpdatesWaiting then
+              begin
+                Notice(fnRecovery,
+                       'No Windows updates are waiting for installation.');
+                FAlertTicks.Remove('windows-updates-waiting');
+              end;
 
-  if (FLastUpdateCheckTick <> 0) and
-     ((NowTick - FLastUpdateCheckTick) < CHECK_INTERVAL_MS) then
+            FUpdatesWaiting := False;
+          end
+        else
+          Notice(fnWarning,
+                 Format('The Windows Update availability check failed (exit code %d).',
+                        [ExitCode]));
+          Exit;
+      end;
+
+  if (FLastUpdateCheckTick <> 0) and ((NowTick - FLastUpdateCheckTick) < CHECK_INTERVAL_MS) then
     Exit;
+
   FLastUpdateCheckTick := NowTick;
-  ZeroMemory(@StartupInfo, SizeOf(StartupInfo));
+
+  ZeroMemory(@StartupInfo,
+             SizeOf(StartupInfo));
+
   StartupInfo.cb := SizeOf(StartupInfo);
   StartupInfo.dwFlags := STARTF_USESHOWWINDOW;
   StartupInfo.wShowWindow := SW_HIDE;
-  ZeroMemory(@ProcessInfo, SizeOf(ProcessInfo));
+
+  ZeroMemory(@ProcessInfo,
+             SizeOf(ProcessInfo));
+
   CommandLine := '"' + ParamStr(0) + '" --update-check';
   UniqueString(CommandLine);
-  if not CreateProcess(nil, PChar(CommandLine), nil, nil, False,
-                       CREATE_NO_WINDOW, nil, nil, StartupInfo,
+
+  if not CreateProcess(nil,
+                       PChar(CommandLine),
+                       nil,
+                       nil,
+                       False,
+                       CREATE_NO_WINDOW,
+                       nil,
+                       nil,
+                       StartupInfo,
                        ProcessInfo) then
     begin
-      Notice(fnWarning, 'Could not start the Windows Update check: ' +
-                        SysErrorMessage(GetLastError()));
+      Notice(fnWarning,
+             'Could not start the Windows Update check: ' + SysErrorMessage(GetLastError()));
       Exit;
     end;
+
   CloseHandle(ProcessInfo.hThread);
   FUpdateCheckProcess := ProcessInfo.hProcess;
 end;
 
+
 function RegistryKeyExists64(const AKey: string): Boolean;
 var
   Registry: TRegistry;
+
 begin
+
   Registry := TRegistry.Create(KEY_READ or KEY_WOW64_64KEY);
+
   try
     Registry.RootKey := HKEY_LOCAL_MACHINE;
     Result := Registry.KeyExists(AKey);
+
   finally
     Registry.Free();
   end;
 end;
 
+
 procedure TFxRecordMonitor.CheckWindowsRestart();
 const
   CHECK_INTERVAL_MS = 5 * 60 * 1000;
+
 var
   NowTick: UInt64;
   Pending: Boolean;
+
 begin
+
   NowTick := GetTickCount();
   if (FLastSystemCheckTick <> 0) and
      ((NowTick - FLastSystemCheckTick) < CHECK_INTERVAL_MS) then
     Exit;
+
   FLastSystemCheckTick := NowTick;
-  Pending := RegistryKeyExists64(
-    '\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending') or
-    RegistryKeyExists64(
-    '\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired');
+
+  Pending := RegistryKeyExists64('\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending') or
+                                 RegistryKeyExists64('\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired');
+
   if Pending and not FRestartPending then
-    Alert('windows-restart-pending', 'WARNING: Windows restart required',
-      'Windows has installed an update that requires a restart. Plan a maintenance window; do not restart during a live broadcast.',
-      fnWarning)
-  else if not Pending and FRestartPending then
-    begin
-      Notice(fnRecovery, 'Windows no longer reports a pending restart.');
-      FAlertTicks.Remove('windows-restart-pending');
-    end;
+    Alert('windows-restart-pending',
+          'WARNING: Windows restart required',
+          'Windows has installed an update that requires a restart. Plan a maintenance window; do not restart during a live broadcast.',
+          fnWarning)
+  else
+    if not Pending and FRestartPending then
+      begin
+        Notice(fnRecovery,
+               'Windows no longer reports a pending restart.');
+
+        FAlertTicks.Remove('windows-restart-pending');
+      end;
   FRestartPending := Pending;
 end;
+
 
 procedure TFxRecordMonitor.RecorderEvent(const ALevel: TFxRecorderEventLevel;
                                          const AText: string);
 begin
+
   case ALevel of
     relWarning:
       begin
-        Alert('recording-warning', 'WARNING: recording needs attention',
-              AText, fnWarning);
+        Alert('recording-warning',
+              'WARNING: recording needs attention',
+              AText,
+              fnWarning);
       end;
+
     relCritical:
       begin
-        Alert('recording-error', 'CRITICAL: recording failure',
-              AText, fnCritical);
+        Alert('recording-error',
+              'CRITICAL: recording failure',
+              AText,
+              fnCritical);
       end;
-    relRecovery: Notice(fnRecovery, AText);
+
+    relRecovery: Notice(fnRecovery,
+                        AText);
   else
     Notice(fnInfo, AText);
   end;
 end;
+
 
 procedure TFxRecordMonitor.CheckDisk();
 var
@@ -399,7 +604,9 @@ var
   TotalFree: Int64;
   FreeGB: Double;
   NewState: Integer;
+
 begin
+
   if not DirectoryExists(FSettings.ArchivePath) then
     ForceDirectories(FSettings.ArchivePath);
 
@@ -408,47 +615,57 @@ begin
                             TotalBytes,
                             @TotalFree) then
     begin
-      if FDiskState <> 3 then
+      if (FDiskState <> 3) then
         Alert('disk-query', 'CRITICAL: archive disk unavailable',
               'FxRecord cannot access the archive disk: ' +
               FSettings.ArchivePath + '. ' + SysErrorMessage(GetLastError()),
               fnCritical);
+
       FDiskState := 3;
       FDiskFreeGB := -1;
       Exit;
     end;
 
+
   FreeGB := FreeAvailable / 1024 / 1024 / 1024;
   FDiskFreeGB := FreeGB;
-  if FreeGB <= FSettings.CriticalFreeGB then
+
+  if (FreeGB <= FSettings.CriticalFreeGB) then
     NewState := 2
   else if FreeGB <= FSettings.WarningFreeGB then
     NewState := 1
   else
     NewState := 0;
 
-  if NewState = FDiskState then
+  if (NewState = FDiskState) then
     Exit;
 
   case NewState of
     2: Alert('disk-critical', 'CRITICAL: archive disk space',
              Format('Only %.1f GB is available in %s.',
-                    [FreeGB, FSettings.ArchivePath]), fnCritical);
+                    [FreeGB, FSettings.ArchivePath]),
+             fnCritical);
+
     1: Alert('disk-warning', 'WARNING: archive disk space',
              Format('Only %.1f GB is available in %s.',
-                    [FreeGB, FSettings.ArchivePath]), fnWarning);
+                    [FreeGB, FSettings.ArchivePath]),
+             fnWarning);
+
     0:
-      if FDiskState > 0 then
+      if (FDiskState > 0) then
         begin
           Notice(fnRecovery, Format('Archive disk space recovered: %.1f GB available.',
                                     [FreeGB]));
+
           FAlertTicks.Remove('disk-query');
           FAlertTicks.Remove('disk-critical');
           FAlertTicks.Remove('disk-warning');
         end;
   end;
+
   FDiskState := NewState;
 end;
+
 
 procedure TFxRecordMonitor.CheckLiveManifest();
 var
@@ -467,26 +684,37 @@ var
   Attempt: Integer;
   ReadSucceeded: Boolean;
   JsonValid: Boolean;
+
 begin
-  FileName := TPath.Combine(FSettings.StreamPath, 'live.json');
+
+  FileName := TPath.Combine(FSettings.StreamPath,
+                            'live.json');
+
   if not FileExists(FileName) then
     begin
       FManifestFailureTick := 0;
       NewState := 0;
+
       if FSettings.RequireLiveStream then
         NewState := 2;
+
       if NewState = 2 then
         FLiveDetail := 'missing'
       else
         FLiveDetail := 'waiting';
-      if NewState <> FLiveState then
+
+      if (NewState <> FLiveState) then
         begin
           if NewState = 2 then
-            Alert('live-missing', 'WARNING: live manifest missing',
-                  'FxRecord cannot find ' + FileName + '.', fnWarning)
+            Alert('live-missing',
+                  'WARNING: live manifest missing',
+                  'FxRecord cannot find ' + FileName + '.',
+                  fnWarning)
           else
-            Notice(fnInfo, 'Waiting for a live broadcast.');
+            Notice(fnInfo,
+                   'Waiting for a live broadcast.');
         end;
+
       FLiveState := NewState;
       Exit;
     end;
@@ -494,9 +722,11 @@ begin
   ReadSucceeded := False;
   JsonValid := False;
   JsonValue := nil;
+
   for Attempt := 1 to 3 do
     begin
-      ReadSucceeded := TryReadSharedTextFile(FileName, ManifestText,
+      ReadSucceeded := TryReadSharedTextFile(FileName,
+                                             ManifestText,
                                              LastWriteUtc);
       if ReadSucceeded then
         begin
@@ -506,33 +736,38 @@ begin
             Break;
           FreeAndNil(JsonValue);
         end;
-      if Attempt < 3 then
-        Sleep(25);
+
+      if (Attempt < 3) then
+        Sleep(3000);
     end;
 
   if not JsonValid then
     begin
       NowTick := GetTickCount();
-      if FManifestFailureTick = 0 then
+
+      if (FManifestFailureTick = 0) then
         FManifestFailureTick := NowTick;
-      if (NowTick - FManifestFailureTick) >=
-         UInt64(FSettings.LiveStaleSeconds) * 1000 then
+      if (NowTick - FManifestFailureTick) >= UInt64(FSettings.LiveStaleSeconds) * 1000 then
         begin
           PreviousDetail := FLiveDetail;
           FLiveState := 2;
+
           if ReadSucceeded then
             FLiveDetail := 'invalid'
           else
             FLiveDetail := 'unreadable';
+
           if PreviousDetail <> FLiveDetail then
             begin
               if ReadSucceeded then
-                Alert('live-json', 'WARNING: invalid live manifest',
+                Alert('live-json',
+                      'WARNING: invalid live manifest',
                       FileName + ' has remained invalid for ' +
                       IntToStr(FSettings.LiveStaleSeconds) + ' seconds.',
                       fnWarning)
               else
-                Alert('live-unreadable', 'WARNING: live manifest unavailable',
+                Alert('live-unreadable',
+                      'WARNING: live manifest unavailable',
                       FileName + ' could not be read for ' +
                       IntToStr(FSettings.LiveStaleSeconds) + ' seconds.',
                       fnWarning);
@@ -544,7 +779,8 @@ begin
   FManifestFailureTick := 0;
   AgeSeconds := SecondsBetween(LastWriteUtc,
                                TTimeZone.Local.ToUniversalTime(Now));
-  if AgeSeconds > FSettings.LiveStaleSeconds then
+
+  if (AgeSeconds > FSettings.LiveStaleSeconds) then
     begin
       NewState := 2;
       FLiveDetail := 'stale';
@@ -555,27 +791,29 @@ begin
       FLiveDetail := 'live';
     end;
 
-  if NewState <> FLiveState then
+  if (NewState <> FLiveState) then
     begin
-      if NewState = 2 then
+      if (NewState = 2) then
         Alert('live-stale', 'WARNING: live stream stopped updating',
-              Format('%s has not changed for %d seconds.', [FileName, AgeSeconds]),
+              Format('%s has not changed for %d seconds.',
+                     [FileName, AgeSeconds]),
               fnWarning)
-      else if FLiveState = 2 then
-        begin
-          Notice(fnRecovery, 'Live stream updates resumed.');
-          FAlertTicks.Remove('live-missing');
-          FAlertTicks.Remove('live-stale');
-          FAlertTicks.Remove('live-json');
-          FAlertTicks.Remove('live-unreadable');
-          FAlertTicks.Remove('sequence-backwards');
-        end
       else
-        Notice(fnInfo, 'Live stream detected.');
+        if (FLiveState = 2) then
+          begin
+            Notice(fnRecovery, 'Live stream updates resumed.');
+            FAlertTicks.Remove('live-missing');
+            FAlertTicks.Remove('live-stale');
+            FAlertTicks.Remove('live-json');
+            FAlertTicks.Remove('live-unreadable');
+            FAlertTicks.Remove('sequence-backwards');
+          end
+        else
+          Notice(fnInfo, 'Live stream detected.');
     end;
   FLiveState := NewState;
 
-  if NewState <> 1 then
+  if (NewState <> 1) then
     begin
       JsonValue.Free();
       Exit;
@@ -586,6 +824,7 @@ begin
     FRecorder.ProcessManifest(JsonObject);
     SessionId := JsonText(JsonObject, 'sessionId');
     PublishText := JsonText(JsonObject, 'publishSeq');
+
     if not TryStrToInt64(PublishText, PublishSeq) then
       PublishSeq := -1;
 
@@ -596,27 +835,36 @@ begin
         FLastPublishSeq := -1;
       end;
 
-    if (PublishSeq >= 0) and (FLastPublishSeq >= 0) and
-       (PublishSeq < FLastPublishSeq) then
-      Alert('sequence-backwards', 'WARNING: fragment sequence moved backwards',
+    if (PublishSeq >= 0) and (FLastPublishSeq >= 0) and (PublishSeq < FLastPublishSeq) then
+      Alert('sequence-backwards',
+            'WARNING: fragment sequence moved backwards',
             Format('Publish sequence changed from %d to %d in session %s.',
-                   [FLastPublishSeq, PublishSeq, SessionId]), fnWarning);
+                   [FLastPublishSeq, PublishSeq, SessionId]),
+                   fnWarning);
+
     FLastPublishSeq := PublishSeq;
+
   finally
     JsonValue.Free();
   end;
 end;
 
+
 function TFxRecordMonitor.StatusFileName(): string;
 var
   WebRoot: string;
+
 begin
+
   WebRoot := ExtractFileDir(ExcludeTrailingPathDelimiter(FSettings.StreamPath));
-  Result := TPath.Combine(TPath.Combine(WebRoot, 'FxAlert'), 'status.json');
+  Result := TPath.Combine(TPath.Combine(WebRoot,
+                                        'FxAlert'),
+                                        'status.json');
 end;
 
-procedure TFxRecordMonitor.PublishStatus(const AStopped,
-                                               AForce: Boolean);
+
+procedure TFxRecordMonitor.PublishStatus(const AStopped: Boolean;
+                                         const AForce: Boolean);
 var
   NowTick: UInt64;
   TargetName: string;
@@ -627,23 +875,31 @@ var
   AlertJson: TJSONObject;
   MoveAttempt: Integer;
   MoveError: DWORD;
+
 begin
+
   NowTick := GetTickCount();
+
   if not AForce and (FLastStatusWriteTick <> 0) and
      ((NowTick - FLastStatusWriteTick) < 5000) then
     Exit;
 
   if AStopped then
     StateText := 'stopped'
-  else if (FDiskState >= 2) then
-    StateText := 'critical'
-  else if (FDiskState = 1) or (FLiveState = 2) or FRestartPending or
-          FUpdatesWaiting then
-    StateText := 'warning'
-  else if (FDiskState < 0) or (FLiveState < 0) then
-    StateText := 'starting'
   else
-    StateText := 'ok';
+    if (FDiskState >= 2) then
+      StateText := 'critical'
+    else
+      if (FDiskState = 1) or
+         (FLiveState = 2) or
+         FRestartPending or
+         FUpdatesWaiting then
+    StateText := 'warning'
+  else
+    if (FDiskState < 0) or (FLiveState < 0) then
+      StateText := 'starting'
+    else
+      StateText := 'ok';
 
   case FDiskState of
     0: DiskText := 'ok';
@@ -659,47 +915,99 @@ begin
   TempName := TargetName + '.tmp';
 
   Json := TJSONObject.Create();
+
   try
-    Json.AddPair('version', TJSONNumber.Create(1));
-    Json.AddPair('service', 'FxRecord');
-    Json.AddPair('computer', GetEnvironmentVariable('COMPUTERNAME'));
-    Json.AddPair('heartbeatUtc', UtcText());
-    Json.AddPair('state', StateText);
-    Json.AddPair('diskState', DiskText);
-    Json.AddPair('diskFreeGB', TJSONNumber.Create(FDiskFreeGB));
-    Json.AddPair('streamState', FLiveDetail);
+    Json.AddPair('version',
+                 TJSONNumber.Create(1));
+
+    Json.AddPair('service',
+                 'FxRecord');
+
+    Json.AddPair('computer',
+                  GetEnvironmentVariable('COMPUTERNAME'));
+
+    Json.AddPair('heartbeatUtc',
+                 UtcText());
+
+    Json.AddPair('state',
+                 StateText);
+
+    Json.AddPair('diskState',
+                 DiskText);
+
+    Json.AddPair('diskFreeGB',
+                 TJSONNumber.Create(FDiskFreeGB));
+
+    Json.AddPair('streamState',
+                 FLiveDetail);
+
     if FRestartPending then
-      Json.AddPair('restartPending', TJSONTrue.Create())
+      Json.AddPair('restartPending',
+                   TJSONTrue.Create())
     else
-      Json.AddPair('restartPending', TJSONFalse.Create());
+      Json.AddPair('restartPending',
+                   TJSONFalse.Create());
+
     if FUpdatesWaiting then
-      Json.AddPair('updatesWaiting', TJSONTrue.Create())
+      Json.AddPair('updatesWaiting',
+                   TJSONTrue.Create())
     else
-      Json.AddPair('updatesWaiting', TJSONFalse.Create());
-    Json.AddPair('sessionId', FLastSessionId);
-    Json.AddPair('publishSeq', TJSONNumber.Create(FLastPublishSeq));
+      Json.AddPair('updatesWaiting',
+                    TJSONFalse.Create());
+
+    Json.AddPair('sessionId',
+                 FLastSessionId);
+    Json.AddPair('publishSeq',
+                 TJSONNumber.Create(FLastPublishSeq));
+
     if FRecorder.IsRecording() then
-      Json.AddPair('recordingActive', TJSONTrue.Create())
+      Json.AddPair('recordingActive',
+                   TJSONTrue.Create())
     else
-      Json.AddPair('recordingActive', TJSONFalse.Create());
-    Json.AddPair('recordingFile', FRecorder.ActiveFileName);
-    Json.AddPair('recordingBytes', TJSONNumber.Create(FRecorder.BytesWritten));
-    Json.AddPair('recordedSequence', TJSONNumber.Create(FRecorder.LastSequence));
+      Json.AddPair('recordingActive',
+                   TJSONFalse.Create());
+
+    Json.AddPair('recordingFile',
+                 FRecorder.ActiveFileName);
+
+    Json.AddPair('recordingBytes',
+                 TJSONNumber.Create(FRecorder.BytesWritten));
+
+    Json.AddPair('recordedSequence',
+                 TJSONNumber.Create(FRecorder.LastSequence));
 
     AlertJson := TJSONObject.Create();
-    AlertJson.AddPair('id', FLastAlertId);
-    AlertJson.AddPair('key', FLastAlertKey);
-    AlertJson.AddPair('severity', FLastAlertSeverity);
-    AlertJson.AddPair('subject', FLastAlertSubject);
-    AlertJson.AddPair('message', FLastAlertText);
-    AlertJson.AddPair('createdUtc', FLastAlertUtc);
-    Json.AddPair('alert', AlertJson);
 
-    TFile.WriteAllText(TempName, Json.ToJSON(), TEncoding.UTF8);
+    AlertJson.AddPair('id',
+                      FLastAlertId);
+
+    AlertJson.AddPair('key',
+                      FLastAlertKey);
+
+    AlertJson.AddPair('severity',
+                      FLastAlertSeverity);
+
+    AlertJson.AddPair('subject',
+                      FLastAlertSubject);
+
+    AlertJson.AddPair('message',
+                      FLastAlertText);
+
+    AlertJson.AddPair('createdUtc',
+                      FLastAlertUtc);
+
+    Json.AddPair('alert',
+                 AlertJson);
+
+    TFile.WriteAllText(TempName,
+                       Json.ToJSON(),
+                       TEncoding.UTF8);
     MoveError := ERROR_SUCCESS;
+
     for MoveAttempt := 1 to 20 do
       begin
-        if MoveFileEx(PChar(TempName), PChar(TargetName),
+        if MoveFileEx(PChar(TempName),
+                      PChar(TargetName),
                       MOVEFILE_REPLACE_EXISTING or MOVEFILE_WRITE_THROUGH) then
           begin
             MoveError := ERROR_SUCCESS;
@@ -707,37 +1015,49 @@ begin
           end;
 
         MoveError := GetLastError();
+
         if (MoveError <> ERROR_ACCESS_DENIED) and
            (MoveError <> ERROR_SHARING_VIOLATION) and
            (MoveError <> ERROR_LOCK_VIOLATION) then
           Break;
+
         Sleep(25);
       end;
 
-    if MoveError <> ERROR_SUCCESS then
+    if (MoveError <> ERROR_SUCCESS) then
       begin
         if not FStatusPublishFailed then
-          Notice(fnWarning, 'FxAlert status publication is temporarily blocked: ' +
-                 SysErrorMessage(MoveError));
+          Notice(fnWarning,
+                 'FxAlert status publication is temporarily blocked: ' + SysErrorMessage(MoveError));
+
         FStatusPublishFailed := True;
         Exit;
       end;
 
     if FStatusPublishFailed then
       Notice(fnRecovery, 'FxAlert status publication resumed.');
+
     FStatusPublishFailed := False;
     FLastStatusWriteTick := NowTick;
+
   finally
     Json.Free();
+
     if FileExists(TempName) then
       DeleteFile(TempName);
   end;
 end;
 
+
 procedure TFxRecordMonitor.Execute();
 begin
-  Notice(fnInfo, 'Recording and monitoring started.');
-  Notice(fnInfo, 'FxAlert status: ' + StatusFileName());
+
+  Notice(fnInfo,
+         'Recording and monitoring started.');
+
+  Notice(fnInfo,
+         'FxAlert status: ' + StatusFileName());
+
   while not Terminated do
     begin
       try
@@ -748,20 +1068,28 @@ begin
         PublishStatus(False, False);
       except
         on E: Exception do
-          Alert('monitor-exception', 'CRITICAL: monitor error',
-                E.ClassName + ': ' + E.Message, fnCritical);
+          Alert('monitor-exception',
+                'CRITICAL: monitor error',
+                E.ClassName + ': ' + E.Message,
+                fnCritical);
       end;
 
-      if FStopEvent.WaitFor(FSettings.PollIntervalMs) = wrSignaled then
+      if (FStopEvent.WaitFor(FSettings.PollIntervalMs) = wrSignaled) then
         Break;
     end;
+
   FRecorder.Stop();
+
   try
-    PublishStatus(True, True);
+    PublishStatus(True,
+                  True);
+
   except
-    { The monitor is already stopping; a stale heartbeat also tells FxAlert. }
+    // The monitor is already stopping; a stale heartbeat also tells FxAlert.
   end;
-  Notice(fnInfo, 'Recording and monitoring stopped.');
+
+  Notice(fnInfo,
+         'Recording and monitoring stopped.');
 end;
 
 end.

@@ -1,52 +1,91 @@
 # FxRecord
 
+Version: 4.0.1
+  
+**NOTES:**
+  
+- This release is updated for compiler version 17 up to 35.
+- SDK version: 10.0.28000.2705 (Win 11)
+- Requires Windows 10 or later.
+- Minimum supported MfPack version: 4.0.0
+  
+---
+
 FxRecord is the FactoryX server-side compliance recorder for RDJ Pro broadcasts.
 It runs beside FxServe or Caddy and watches the local published stream folder.
 It does not download the public HTTPS stream.
 
-## Current milestone
+## When do you need a compliance recorder
+
+When you are running a broadcast station, your government may need a copy from your 
+broadcast activities for a period of time (retention days) in a specific audio/video format. 
+ 
+## Implementations
 
 The initial VCL application provides:
 
-- stream and archive folder configuration;
-- live manifest and session monitoring;
-- disk warning and critical thresholds;
-- an atomic `FxAlert/status.json` heartbeat and warning feed;
+- Stream and archive folder configuration;
+- Live manifest and session monitoring;
+- Disk warning and critical thresholds;
+- An `FxAlert/status.json` online check and warning feed;
 - FxAlert warnings for phones, tablets and desktop computers;
-- crash-safe source recording to fragmented MP4;
-- clock-aligned file rotation and configurable retention;
-- active filename and recording progress in the application log;
-- an editable Delphi VCL form.
+- Crash-safe source recording to fragmented MP4;
+- Clock-aligned file rotation and configurable retention;
+- Active filename and recording progress in the application log;
 
 The recording engine supports these output profiles:
 
-- `SourceCopy` and `MP4-H264-AAC` keep RDJ Pro's H.264 video and AAC audio
-  without reducing their quality.
-- `AVI-H264-MP3` creates a real AVI file with H.264 video at 25 fps and MP3
-  stereo audio at 44.1 kHz and 192 kbps. Video is converted to meet the
-  compliance frame-rate minimum.
+- `SourceCopy` keeps RDJ Pro's H.264 video and AAC audio without re-encoding.
+- `MP4-H264-AAC` preserves the H.264 video and encodes stereo AAC at the
+  selected sample rate (44.1 or 48 kHz) and bitrate (96, 128, 160 or 192 kbps).
+  The AAC bitrate minimum is 96 kbps and the maximum is 192 kbps.
+- `AVI-H264-MP3` creates an AVI file with H.264 video at 25 fps and stereo
+  MP3 at the selected sample rate (44.1, 48 or 32 kHz) and bitrate
+  (128, 160 or 192 kbps). Video is converted to meet the compliance
+  frame-rate minimum.
 
-Active MP4 recordings use the `.mp4.partial` suffix. AVI recording first uses
-a safe `.avi.source.mp4.partial` file. When the source segment closes, FxRecord
-converts it in the background and publishes the result as `.avi`. If conversion
-fails, the source MP4 is kept and the administrator receives an FxAlert warning.
-If FxRecord finds an unfinished file after a crash, it preserves and reports
-that file instead of overwriting it.
+SourceCopy recordings use the `.mp4.partial` suffix. Profiles that encode
+audio first record to `.avi.source.mp4.partial` or
+`.mp4.source.mp4.partial`. When a source segment closes, FxRecord converts
+it in the background and publishes the result as `.avi` or `.mp4`. If
+conversion fails, the source MP4 is kept and an FxAlert warning is published.
+Unfinished files found after a crash are preserved and reported.
+
+The MP3 and AAC controls are enabled only for their matching output profile.
+Each codec remembers its own settings. Save writes them to the INI file,
+and the Windows service uses the same settings. Defaults are MP3 at
+44.1 kHz/192 kbps and AAC at 44.1 kHz/160 kbps. SourceCopy ignores these values.
+
+```ini
+[Audio]
+Mp3SampleRate=44100
+Mp3BitRateKbps=192
+AacSampleRate=44100
+AacBitRateKbps=160
+```
+
+The Windows AAC encoder supports stereo AAC-LC at 44.1/48 kHz and
+96-192 kbps in the listed steps; 32 kHz is available for MP3 only.
+See [Microsoft's AAC encoder documentation](https://learn.microsoft.com/en-us/windows/win32/medfound/aac-encoder).
 
 FxRecord rebases the video and audio decode timelines separately at the start
 of every archive file. Each completed MP4 therefore starts at time zero even
 when the RDJ Pro broadcast session has already been running for hours. This
 keeps the elapsed time and seek position correct in players such as VLC.
 
-`AVI-H264-MP3` uses FFmpeg. Place `ffmpeg.exe` beside `FxRecord.exe` on the
-server. The MfPack development tree also finds the copy used by the
-`MfCastPlayer II` sample. Check the FFmpeg build's licence before distributing
-it with a product.
+`AVI-H264-MP3` uses the Windows Media Foundation H.264 and MP3 encoders
+through MfPack, with an AVI container writer built into FxRecord. No
+third-party converter is required.
+The server must have the Windows Media Foundation media components installed.
+Conversion uses an intermediate `.avi.partial.encoded.mp4` work file, removed
+after success and preserved on failure. The AVI writer supports segments below
+2 GiB; use shorter rotation intervals for larger recordings. Exceeding this
+limit reports an FxAlert warning and preserves the source.
 
 ## Windows service
 
-Copy `FxRecord.exe`, `FxRecord.ini`, and—when AVI output is used—`ffmpeg.exe`
-to a local folder on the broadcast server, for example `C:\FxRecord`. Use
+Copy `FxRecord.exe` and `FxRecord.ini` to a local folder on the broadcast
+server, for example `C:\FxRecord`. Use
 server-local paths in `FxRecord.ini`; a service running as LocalSystem should
 not depend on a network share that points back to the same computer.
 
@@ -56,10 +95,33 @@ Open Command Prompt as administrator and run:
 C:\FxRecord\Install-FxRecord.cmd
 ```
 
-The installer registers `FactoryX FxRecord` as a delayed automatic Windows
-service and configures three restart attempts with a 60-second delay. The
-service starts without a signed-in user and writes `FxRecord.log` beside its
-INI file.
+The installer registers `FxRecord` as a delayed automatic Windows
+service and configures three restart attempts with a 60-second delay. If Windows rejects the optional delayed-start setting, the installer logs a warning and retains ordinary automatic startup. The
+service starts without a signed-in user. Desktop mode, installation diagnostics
+and service mode all write the log beside the selected INI: `FxRecord.ini`
+produces `FxRecord.log`. The service account needs write access there.
+Installation errors identify the failing Windows operation and error number.
+Running the installer again repairs an existing stopped service registration;
+it retains the existing service account.
+
+For PCHP001, run the installer **on PCHP001**, elevated, from the actual local
+folder behind `\\PCHP001\FxRecord`. Set `ArchivePath` to the local folder behind
+`\\PCHP001\ComplianceRecordings`. Share names do not reveal their drive paths;
+check the folders in Windows share properties. Use server-local paths for the
+executable, INI and archive; UNC paths belong in the remote admin connection.
+In FxRecordAdmin enter server `PCHP001` and INI
+`\\PCHP001\FxRecord\FxRecord.ini`.
+
+If installation or startup fails, read the new log and inspect:
+
+```bat
+sc.exe qc FxRecord
+sc.exe query FxRecord
+```
+
+The registered command must contain `--service --config` and quote the local
+executable and INI filenames. `--service` is used by the Windows service manager;
+start the installed service with `sc.exe start FxRecord` or the Services app.
 
 To remove only the service registration:
 
@@ -83,6 +145,7 @@ Open this address through HTTPS:
 
 ```text
 https://YOUR-BROADCAST-NAME/FxAlert/
+Like for instance: https://yourbroadcaststation.yourdomain.com/FxAlert/
 ```
 
 Choose **Enable alerts**, allow notifications, and install the app when the
@@ -96,6 +159,17 @@ The app shell is cached for quick startup, but `status.json` is never cached.
 Add `/fxalert/status.json` to FxServe's `NoStoreRoutes` setting. Caddy should
 also send `Cache-Control: no-store` for this file.
 
-This first version must remain open for reliable monitoring. Secure Web Push
-will be added next so Android, Apple and Windows devices can receive warnings
-while the app is closed.
+When FxServe has `[Push] Enabled=True`, **Enable alerts** also creates a secure
+Web Push subscription. Android and Windows devices can then receive warnings
+while FxAlert is closed. On iPhone and iPad, add FxAlert to the Home Screen,
+open the installed app, and enable alerts there. FxServe sends only an
+authenticated wake-up; the service worker retrieves the warning directly from
+`status.json` over HTTPS, so recorder details are not sent through a third-party
+push service.
+
+## LAN desktop administration
+
+[FxRecord Admin](FxRecordAdmin/README.md) is a separate Windows desktop app for
+service start/stop/restart, recorder settings, logs and status over the LAN.
+It uses Windows authentication, native service control and an SMB configuration
+share. See its setup instructions for access rights and LAN firewall rules.

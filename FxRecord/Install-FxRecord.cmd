@@ -15,8 +15,11 @@ if not exist "%~dp0FxRecord.ini" (
 if errorlevel 1 exit /b %errorlevel%
 
 sc.exe start FxRecord
+if errorlevel 1 exit /b %errorlevel%
 sc.exe query FxRecord
+if errorlevel 1 exit /b %errorlevel%
 
 echo.
-echo FxRecord is installed with delayed automatic startup and failure recovery.
+echo FxRecord is installed with automatic startup and failure recovery.
+echo Check FxRecord.log for the delayed-start setting and any warnings.
 endlocal

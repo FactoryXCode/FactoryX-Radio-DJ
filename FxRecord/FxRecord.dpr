@@ -2,6 +2,7 @@ program FxRecord;
 
 uses
   Vcl.Forms,
+  Winapi.Windows,
   System.SysUtils,
   System.Variants,
   System.IOUtils,
@@ -9,6 +10,7 @@ uses
   System.Win.ComObj,
   frmFxRecord in 'frmFxRecord.pas' {FxRecordForm},
   FxRecord.Config in 'FxRecord.Config.pas',
+  FxRecord.Log in 'FxRecord.Log.pas',
   FxRecord.Recorder in 'FxRecord.Recorder.pas',
   FxRecord.Converter in 'FxRecord.Converter.pas',
   FxRecord.Service in 'FxRecord.Service.pas',
@@ -84,6 +86,7 @@ begin
     end;
   ConfigFileName := ExpandFileName(SwitchValue('--config',
     ChangeFileExt(ParamStr(0), '.ini')));
+  try
   if HasSwitch('--service') then
     RunFxRecordService(ConfigFileName)
   else if HasSwitch('--install') then
@@ -98,4 +101,14 @@ begin
       Application.CreateForm(TfrmFxRecord, FxRecordForm);
       Application.Run;
     end;
+  except
+    on E: Exception do
+    begin
+      ExitCode := 1;
+      AppendFxRecordLog(ConfigFileName, 'ERROR', E.ClassName + ': ' + E.Message);
+      if not HasSwitch('--service') then
+        MessageBox(0, PChar(E.Message + sLineBreak + 'Log: ' +
+          ChangeFileExt(ConfigFileName, '.log')), 'FxRecord', MB_OK or MB_ICONERROR);
+    end;
+  end;
 end.

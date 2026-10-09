@@ -1,136 +1,192 @@
-object frmFxRecord: TfrmFxRecord
+object frmFxRecordAdmin: TfrmFxRecordAdmin
   Left = 0
   Top = 0
-  Caption = 'FxRecord'
-  ClientHeight = 440
-  ClientWidth = 726
-  Color = clBtnFace
+  Caption = 'FactoryX FxRecord Admin'
+  ClientHeight = 690
+  ClientWidth = 840
+  Color = 5850948
+  Constraints.MinHeight = 729
+  Constraints.MinWidth = 856
   Font.Charset = DEFAULT_CHARSET
-  Font.Color = clWindowText
+  Font.Color = clWhite
   Font.Height = -13
   Font.Name = 'Segoe UI'
   Font.Style = []
-  OldCreateOrder = False
+  OldCreateOrder = True
   Position = poScreenCenter
   OnCloseQuery = FormCloseQuery
   OnCreate = FormCreate
   PixelsPerInch = 96
   TextHeight = 17
-  object PageControl: TPageControl
+  object lblOperation: TLabel
+    Left = 0
+    Top = 620
+    Width = 840
+    Height = 24
+    Align = alBottom
+    AutoSize = False
+    Caption = 'Ready'
+    ExplicitTop = 0
+    ExplicitWidth = 4
+  end
+  object pnlConnection: TPanel
     Left = 0
     Top = 0
-    Width = 726
-    Height = 393
-    ActivePage = tabStatus
-    Align = alClient
+    Width = 840
+    Height = 165
+    Align = alTop
+    BevelOuter = bvNone
+    Color = 5850948
+    ParentBackground = False
     TabOrder = 0
-    ExplicitHeight = 394
-    object tabStatus: TTabSheet
-      Caption = 'Status'
-      ExplicitHeight = 362
-      object memLog: TMemo
-        Left = 0
-        Top = 0
-        Width = 718
-        Height = 307
-        Align = alClient
-        Color = 9216
-        Font.Charset = DEFAULT_CHARSET
-        Font.Color = 9889633
-        Font.Height = -13
-        Font.Name = 'Segoe UI'
-        Font.Style = []
-        ParentFont = False
-        ReadOnly = True
-        ScrollBars = ssVertical
-        TabOrder = 0
-        ExplicitHeight = 289
-      end
-      object pnlStatusTop: TPanel
-        Left = 0
-        Top = 307
-        Width = 718
-        Height = 54
-        Align = alBottom
-        BevelOuter = bvNone
-        Color = 5850948
-        ParentBackground = False
-        TabOrder = 1
-        ExplicitTop = 295
-        object lblState: TLabel
-          Left = 14
-          Top = 18
-          Width = 58
-          Height = 17
-          Caption = 'STOPPED'
-          Font.Charset = DEFAULT_CHARSET
-          Font.Color = clRed
-          Font.Height = -13
-          Font.Name = 'Segoe UI'
-          Font.Style = [fsBold]
-          ParentFont = False
-        end
-        object btnStart: TButton
-          Left = 417
-          Top = 12
-          Width = 94
-          Height = 31
-          Hint = 'Start recording'
-          Caption = 'Start'
-          ParentShowHint = False
-          ShowHint = True
-          TabOrder = 0
-          OnClick = btnStartClick
-        end
-        object btnStop: TButton
-          Left = 517
-          Top = 12
-          Width = 94
-          Height = 31
-          Hint = 'Stop recording'
-          Caption = 'Stop'
-          ParentShowHint = False
-          ShowHint = True
-          TabOrder = 1
-          OnClick = btnStopClick
-        end
-        object btnClearLog: TButton
-          Left = 617
-          Top = 12
-          Width = 94
-          Height = 31
-          Caption = 'Clear Log'
-          TabOrder = 2
-          OnClick = btnClearLogClick
-        end
-        object btnOpenArchive: TButton
-          Left = 321
-          Top = 12
-          Width = 90
-          Height = 31
-          Hint = 'Open Archive Folder'
-          Caption = 'Archive Folder'
-          ParentShowHint = False
-          ShowHint = True
-          TabOrder = 3
-          OnClick = btnOpenArchiveClick
-        end
-      end
+    object lblServer: TLabel
+      Left = 12
+      Top = 17
+      Width = 64
+      Height = 17
+      Caption = 'LAN server'
     end
+    object lblWindowsIdentity: TLabel
+      Left = 470
+      Top = 17
+      Width = 164
+      Height = 17
+      Caption = 'Uses your Windows account'
+    end
+    object lblSharedConfig: TLabel
+      Left = 12
+      Top = 51
+      Width = 61
+      Height = 17
+      Caption = 'Shared INI'
+    end
+    object lblServerConfig: TLabel
+      Left = 12
+      Top = 85
+      Width = 61
+      Height = 17
+      Caption = 'Service INI'
+    end
+    object lblService: TLabel
+      Left = 370
+      Top = 126
+      Width = 458
+      Height = 25
+      AutoSize = False
+      Caption = 'FxRecord service: not connected'
+    end
+    object edServer: TEdit
+      Left = 100
+      Top = 12
+      Width = 228
+      Height = 25
+      Color = 9216
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWhite
+      Font.Height = -13
+      Font.Name = 'Segoe UI'
+      Font.Style = []
+      ParentFont = False
+      TabOrder = 0
+      TextHint = 'Server name or LAN IPv4 address'
+      OnChange = ConnectionChanged
+    end
+    object btnConnect: TButton
+      Left = 340
+      Top = 10
+      Width = 116
+      Height = 30
+      Caption = 'Connect / reload'
+      TabOrder = 1
+      OnClick = ConnectClick
+    end
+    object edSharedConfig: TEdit
+      Left = 100
+      Top = 46
+      Width = 728
+      Height = 25
+      Color = 9216
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWhite
+      Font.Height = -13
+      Font.Name = 'Segoe UI'
+      Font.Style = []
+      ParentFont = False
+      TabOrder = 2
+      TextHint = '\SERVER\FxRecord\FxRecord.ini'
+      OnChange = ConnectionChanged
+    end
+    object edServerConfig: TEdit
+      Left = 100
+      Top = 80
+      Width = 728
+      Height = 25
+      Color = 9216
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWhite
+      Font.Height = -13
+      Font.Name = 'Segoe UI'
+      Font.Style = []
+      ParentFont = False
+      ReadOnly = True
+      TabOrder = 3
+    end
+    object btnStart: TButton
+      Left = 12
+      Top = 119
+      Width = 80
+      Height = 30
+      Caption = 'Start'
+      TabOrder = 4
+      OnClick = StartClick
+    end
+    object btnStop: TButton
+      Left = 100
+      Top = 119
+      Width = 80
+      Height = 30
+      Caption = 'Stop'
+      TabOrder = 5
+      OnClick = StopClick
+    end
+    object btnRestart: TButton
+      Left = 188
+      Top = 119
+      Width = 80
+      Height = 30
+      Caption = 'Restart'
+      TabOrder = 6
+      OnClick = RestartClick
+    end
+    object btnRefresh: TButton
+      Left = 276
+      Top = 119
+      Width = 80
+      Height = 30
+      Caption = 'Refresh'
+      TabOrder = 7
+      OnClick = RefreshClick
+    end
+  end
+  object PageControl: TPageControl
+    Left = 0
+    Top = 165
+    Width = 840
+    Height = 455
+    ActivePage = tabRecorder
+    Align = alClient
+    TabOrder = 1
     object tabRecorder: TTabSheet
-      Caption = 'Recorder'
-      ImageIndex = 1
-      ExplicitHeight = 362
+      Caption = 'Recorder settings'
       object Panel1: TPanel
         Left = 0
         Top = 0
-        Width = 718
-        Height = 361
+        Width = 832
+        Height = 423
         Align = alClient
         Color = 5850948
         ParentBackground = False
         TabOrder = 0
-        ExplicitHeight = 362
         object Bevel1: TBevel
           Left = 8
           Top = 100
@@ -364,6 +420,38 @@ object frmFxRecord: TfrmFxRecord
           ShowHint = True
           Transparent = False
         end
+        object lblLiveTimeout: TLabel
+          Left = 6
+          Top = 350
+          Width = 126
+          Height = 17
+          Alignment = taRightJustify
+          AutoSize = False
+          Caption = 'Live timeout (sec)'
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = clWhite
+          Font.Height = -13
+          Font.Name = 'Segoe UI'
+          Font.Style = []
+          ParentFont = False
+        end
+        object lblPathHelp: TLabel
+          Left = 251
+          Top = 350
+          Width = 440
+          Height = 34
+          AutoSize = False
+          Caption = 
+            'Folders are paths on the server. Relative paths stay relative to' +
+            ' the server INI.'
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = clWhite
+          Font.Height = -13
+          Font.Name = 'Segoe UI'
+          Font.Style = []
+          ParentFont = False
+          WordWrap = True
+        end
         object edStreamPath: TEdit
           Left = 138
           Top = 20
@@ -377,16 +465,7 @@ object frmFxRecord: TfrmFxRecord
           Font.Style = []
           ParentFont = False
           TabOrder = 0
-          OnChange = edStreamPathChange
-        end
-        object btnBrowseStream: TButton
-          Left = 678
-          Top = 20
-          Width = 32
-          Height = 25
-          Caption = '...'
-          TabOrder = 1
-          OnClick = btnBrowseStreamClick
+          OnChange = SettingsChanged
         end
         object edArchivePath: TEdit
           Left = 138
@@ -403,17 +482,8 @@ object frmFxRecord: TfrmFxRecord
           ParentFont = False
           ParentShowHint = False
           ShowHint = True
-          TabOrder = 2
-          OnChange = edArchivePathChange
-        end
-        object btnBrowseArchive: TButton
-          Left = 678
-          Top = 55
-          Width = 32
-          Height = 25
-          Caption = '...'
-          TabOrder = 3
-          OnClick = btnBrowseArchiveClick
+          TabOrder = 1
+          OnChange = SettingsChanged
         end
         object cbOutputProfile: TComboBox
           Left = 138
@@ -431,7 +501,7 @@ object frmFxRecord: TfrmFxRecord
           ParentFont = False
           ParentShowHint = False
           ShowHint = True
-          TabOrder = 4
+          TabOrder = 2
           OnChange = cbOutputProfileChange
           Items.Strings = (
             'SourceCopy'
@@ -454,9 +524,10 @@ object frmFxRecord: TfrmFxRecord
           ParentFont = False
           ParentShowHint = False
           ShowHint = True
-          TabOrder = 5
+          TabOrder = 3
           Text = '60'
           TextHint = '60'
+          OnChange = SettingsChanged
         end
         object edRetentionDays: TEdit
           Left = 351
@@ -471,9 +542,10 @@ object frmFxRecord: TfrmFxRecord
           Font.Style = []
           NumbersOnly = True
           ParentFont = False
-          TabOrder = 6
+          TabOrder = 4
           Text = '14'
           TextHint = '14'
+          OnChange = SettingsChanged
         end
         object edWarningGB: TEdit
           Left = 138
@@ -488,9 +560,10 @@ object frmFxRecord: TfrmFxRecord
           Font.Style = []
           NumbersOnly = True
           ParentFont = False
-          TabOrder = 7
+          TabOrder = 5
           Text = '20'
           TextHint = '20'
+          OnChange = SettingsChanged
         end
         object edCriticalGB: TEdit
           Left = 351
@@ -505,9 +578,10 @@ object frmFxRecord: TfrmFxRecord
           Font.Style = []
           NumbersOnly = True
           ParentFont = False
-          TabOrder = 8
+          TabOrder = 6
           Text = '5'
           TextHint = '5'
+          OnChange = SettingsChanged
         end
         object chkRequireLive: TCheckBox
           Left = 138
@@ -525,7 +599,8 @@ object frmFxRecord: TfrmFxRecord
           ParentColor = False
           ParentFont = False
           State = cbChecked
-          TabOrder = 9
+          TabOrder = 7
+          OnClick = SettingsChanged
         end
         object edPollingInterval: TEdit
           Left = 541
@@ -543,9 +618,10 @@ object frmFxRecord: TfrmFxRecord
           ParentFont = False
           ParentShowHint = False
           ShowHint = True
-          TabOrder = 10
+          TabOrder = 8
           Text = '500'
           TextHint = '500'
+          OnChange = SettingsChanged
         end
         object cbMp3Rate: TComboBox
           Left = 138
@@ -560,7 +636,8 @@ object frmFxRecord: TfrmFxRecord
           Font.Name = 'Segoe UI'
           Font.Style = []
           ParentFont = False
-          TabOrder = 11
+          TabOrder = 9
+          OnChange = SettingsChanged
           Items.Strings = (
             '44.1 kHz'
             '48 kHz'
@@ -579,7 +656,8 @@ object frmFxRecord: TfrmFxRecord
           Font.Name = 'Segoe UI'
           Font.Style = []
           ParentFont = False
-          TabOrder = 12
+          TabOrder = 11
+          OnChange = SettingsChanged
           Items.Strings = (
             '128'
             '160'
@@ -599,6 +677,7 @@ object frmFxRecord: TfrmFxRecord
           Font.Style = []
           ParentFont = False
           TabOrder = 13
+          OnChange = SettingsChanged
           Items.Strings = (
             '44.1 kHz'
             '48 kHz')
@@ -616,50 +695,156 @@ object frmFxRecord: TfrmFxRecord
           Font.Name = 'Segoe UI'
           Font.Style = []
           ParentFont = False
-          TabOrder = 14
+          TabOrder = 10
+          OnChange = SettingsChanged
           Items.Strings = (
             '96'
             '128'
             '160'
             '192')
         end
+        object edLiveTimeout: TEdit
+          Left = 138
+          Top = 347
+          Width = 60
+          Height = 25
+          Color = 9216
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = clWhite
+          Font.Height = -13
+          Font.Name = 'Segoe UI'
+          Font.Style = []
+          NumbersOnly = True
+          ParentFont = False
+          TabOrder = 12
+          OnChange = SettingsChanged
+        end
+      end
+    end
+    object tabServiceLog: TTabSheet
+      Caption = 'Service log'
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
+      object memServiceLog: TMemo
+        Left = 0
+        Top = 0
+        Width = 832
+        Height = 423
+        Align = alClient
+        Color = 9216
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = 9889633
+        Font.Height = -13
+        Font.Name = 'Consolas'
+        Font.Style = []
+        ParentFont = False
+        ReadOnly = True
+        ScrollBars = ssBoth
+        TabOrder = 0
+        WordWrap = False
+      end
+    end
+    object tabAlertStatus: TTabSheet
+      Caption = 'FxAlert status'
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
+      object memAlertStatus: TMemo
+        Left = 0
+        Top = 0
+        Width = 832
+        Height = 423
+        Align = alClient
+        Color = 9216
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = 9889633
+        Font.Height = -13
+        Font.Name = 'Consolas'
+        Font.Style = []
+        ParentFont = False
+        ReadOnly = True
+        ScrollBars = ssBoth
+        TabOrder = 0
+        WordWrap = False
+      end
+    end
+    object tabActivity: TTabSheet
+      Caption = 'Admin activity'
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
+      object memActivity: TMemo
+        Left = 0
+        Top = 0
+        Width = 832
+        Height = 423
+        Align = alClient
+        Color = 9216
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = 9889633
+        Font.Height = -13
+        Font.Name = 'Consolas'
+        Font.Style = []
+        ParentFont = False
+        ReadOnly = True
+        ScrollBars = ssBoth
+        TabOrder = 0
+        WordWrap = False
       end
     end
   end
-  object pnlBottom: TPanel
+  object pnlActions: TPanel
     Left = 0
-    Top = 393
-    Width = 726
-    Height = 47
+    Top = 644
+    Width = 840
+    Height = 46
     Align = alBottom
-    BevelOuter = bvNone
     Color = 5850948
     ParentBackground = False
-    TabOrder = 1
-    ExplicitTop = 394
+    TabOrder = 2
+    object lblChanges: TLabel
+      Left = 12
+      Top = 15
+      Width = 360
+      Height = 20
+      AutoSize = False
+      Caption = 'Connect to load the recorder settings.'
+    end
     object btnSave: TButton
-      Left = 521
+      Left = 444
       Top = 8
-      Width = 94
-      Height = 31
-      Hint = 'Save settings'
-      Caption = 'Save'
-      ParentShowHint = False
-      ShowHint = True
+      Width = 126
+      Height = 30
+      Caption = 'Save (stopped)'
       TabOrder = 0
-      OnClick = btnSaveClick
+      OnClick = SaveClick
+    end
+    object btnApply: TButton
+      Left = 580
+      Top = 8
+      Width = 138
+      Height = 30
+      Caption = 'Save & restart'
+      TabOrder = 1
+      OnClick = ApplyClick
     end
     object btnClose: TButton
-      Left = 621
+      Left = 730
       Top = 8
-      Width = 94
-      Height = 31
-      Hint = 'Close app'
+      Width = 98
+      Height = 30
       Caption = 'Close'
-      ParentShowHint = False
-      ShowHint = True
-      TabOrder = 1
-      OnClick = btnCloseClick
+      TabOrder = 2
+      OnClick = CloseClick
     end
+  end
+  object RefreshTimer: TTimer
+    Enabled = False
+    Interval = 5000
+    OnTimer = RefreshClick
   end
 end
