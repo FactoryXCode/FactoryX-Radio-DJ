@@ -1,4 +1,4 @@
-## MfRDJ Samples
+## FactoryX Radio DJ
 Version 4.0.0
 
 NOTES:
@@ -7,11 +7,11 @@ SDK version: 10.0.26100.4654 (Win 11)
 Requires Windows 10 or later.
 Minimum supported MfPack version: 4.0.0
 
-**MfRDJ Radio Mixer sample**  
+**MfRDJ Radio Mixer**  
 This sample demonstrates how to build an audio mixer,  
 effects and how to implement IceCast/Caddy for internet broadcasting.  
 The Mixer is fully adjustable for audio endpoint assignments, mixer decks and loopback decks.  
-All WASAPI sample code comes together in this sample.  
+
   
 **Note:**  
  You have to know the principles of WASAPI, MFT's and audio manipulation.  
@@ -21,7 +21,7 @@ All WASAPI sample code comes together in this sample.
   
 ---
 
-**MfRDJ Pro Radio Mixer sample**  
+**MfRDJ Pro Radio Mixer**  
   
 MfRDJPro is the extended version of MfRDJ.
   
@@ -52,9 +52,14 @@ This sample is large and not suitable for beginners!
 Before using this sample make sure, you have all needed components installed (see instructions).
 
 Project: Media Foundation - MFPack - Samples - MFRDJ Samples
+
 Project location: 
+https://github.com/FactoryXCode/FactoryX-Radio-DJ
 https://github.com/FactoryXCode/MfPack
+
 https://sourceforge.net/projects/MFPack
+
 First release date: 02/08/2026
-Final release date: 09/09/2026
+Final release date: 09/10/2026
+
 Copyright © FactoryX. All rights reserved.
