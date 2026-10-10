@@ -180,6 +180,10 @@ an alarm, shows a notification while active and warns when the heartbeat is
 more than 20 seconds old. **Acknowledge** silences the current warning on that
 device; a new warning sounds again.
 
+Recovered conditions are removed from the active alarm automatically. The last
+warning remains visible as history. If another condition is still active, such
+as Windows updates waiting, its own warning is displayed instead.
+
 The application shell is cached, but `status.json` must remain uncached.
 Add `/fxalert/status.json` to FxServe's `NoStoreRoutes` setting. Caddy should
 send `Cache-Control: no-store` for this file.
